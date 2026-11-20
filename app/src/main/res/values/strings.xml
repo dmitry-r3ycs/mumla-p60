@@ -254,4 +254,13 @@
     <string name="pttDiagShare">Share</string>
     <string name="pttDiagCopied">Copied</string>
     <string name="pttNeedsPttMode">PTT key pressed, but the transmit mode is not Push to Talk (Settings - Audio)</string>
+    <string name="audioSource">Audio source</string>
+    <string-array name="audioSourceNames">
+        <item>Default</item>
+        <item>Microphone</item>
+        <item>Camcorder</item>
+        <item>Voice Recognition</item>
+        <item>Voice Communication</item>
+        <item>Unprocessed</item>
+    </string-array>
 </resources>

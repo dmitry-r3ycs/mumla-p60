@@ -229,4 +229,13 @@
     <string name="pttDiagShare">Отправить</string>
     <string name="pttDiagCopied">Скопировано</string>
     <string name="pttNeedsPttMode">Кнопка PTT нажата, но способ передачи не Push to Talk (Настройки - Звук)</string>
+    <string name="audioSource">Источник звука</string>
+    <string-array name="audioSourceNames">
+        <item>По умолчанию</item>
+        <item>Микрофон</item>
+        <item>Видеокамера</item>
+        <item>Распознавание речи</item>
+        <item>Голосовая связь</item>
+        <item>Без обработки</item>
+    </string-array>
 </resources>

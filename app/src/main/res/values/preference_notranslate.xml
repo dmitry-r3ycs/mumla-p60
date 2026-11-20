@@ -104,5 +104,13 @@
     <string name="license_gplv3_link">https://www.gnu.org/licenses/gpl-3.0.html</string>
     <string name="license_apache2">Apache License Version 2.0</string>
     <string name="license_apache2_link">https://www.apache.org/licenses/LICENSE-2.0.html</string>
-
+    <!-- MediaRecorder.AudioSource: DEFAULT, MIC, CAMCORDER, VOICE_RECOGNITION, VOICE_COMMUNICATION, UNPROCESSED -->
+    <string-array name="audioSourceValues" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>5</item>
+        <item>6</item>
+        <item>7</item>
+        <item>9</item>
+    </string-array>
 </resources>

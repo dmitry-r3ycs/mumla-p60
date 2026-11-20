@@ -485,6 +485,9 @@ public class MumlaService extends HumlaService implements
                 changedExtras.putInt(HumlaService.EXTRAS_AUDIO_STREAM, mSettings.isHandsetMode() ?
                                      AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
                 break;
+            case Settings.PREF_AUDIO_SOURCE:
+                changedExtras.putInt(HumlaService.EXTRAS_AUDIO_SOURCE, mSettings.getAudioSource());
+                break;
             case Settings.PREF_THRESHOLD:
                 changedExtras.putFloat(HumlaService.EXTRAS_DETECTION_THRESHOLD,
                         mSettings.getDetectionThreshold());

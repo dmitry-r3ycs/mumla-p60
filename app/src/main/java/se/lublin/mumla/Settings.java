@@ -350,6 +350,18 @@ public class Settings {
         return preferences.getBoolean(PREF_HALF_DUPLEX, DEFAULT_HALF_DUPLEX);
     }
 
+    /** P60: microphone source chosen by the user, a MediaRecorder.AudioSource value. */
+    public static final String PREF_AUDIO_SOURCE = "audio_source";
+    public static final String DEFAULT_AUDIO_SOURCE = "1"; // MediaRecorder.AudioSource.MIC
+
+    public int getAudioSource() {
+        try {
+            return Integer.parseInt(preferences.getString(PREF_AUDIO_SOURCE, DEFAULT_AUDIO_SOURCE));
+        } catch (NumberFormatException e) {
+            return Integer.parseInt(DEFAULT_AUDIO_SOURCE);
+        }
+    }
+
     public boolean isHandsetMode() {
         return preferences.getBoolean(PREF_HANDSET_MODE, DEFAULT_HANDSET_MODE);
     }
