@@ -1,0 +1,66 @@
+/*
+ * Hytera P60 adaptation: hardware PTT key while the app is in the background.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
+
+package se.lublin.mumla.service;
+
+import android.accessibilityservice.AccessibilityService;
+import android.util.Log;
+import android.view.KeyEvent;
+import android.view.accessibility.AccessibilityEvent;
+
+import se.lublin.mumla.Settings;
+
+/**
+ * Receives hardware key events even when Mumla is minimized or the screen is
+ * off, and forwards the configured push-to-talk key to the running service.
+ * It never reads window content; only the PTT key selected in the audio
+ * settings is handled, every other key is passed through untouched.
+ */
+public class PttAccessibilityService extends AccessibilityService {
+    private static final String TAG = "MumlaP60";
+
+    @Override
+    public void onAccessibilityEvent(AccessibilityEvent event) {
+        // Not used.
+    }
+
+    @Override
+    public void onInterrupt() {
+        // Not used.
+    }
+
+    @Override
+    protected boolean onKeyEvent(KeyEvent event) {
+        Settings settings = Settings.getInstance(this);
+        int pttKey = settings.getPushToTalkKey();
+        if (pttKey == Settings.DEFAULT_PUSH_KEY || event.getKeyCode() != pttKey) {
+            return false;
+        }
+        if (!Settings.ARRAY_INPUT_METHOD_PTT.equals(settings.getInputMethod())) {
+            return false;
+        }
+        MumlaService service = MumlaService.getInstance();
+        if (service == null || !service.isConnectionEstablished()) {
+            // Not connected: leave the key to other apps.
+            return false;
+        }
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            if (event.getRepeatCount() == 0) {
+                Log.i(TAG, "PTT key down (accessibility), code " + pttKey);
+                service.onHardwarePtt(true);
+            }
+            return true;
+        } else if (event.getAction() == KeyEvent.ACTION_UP) {
+            Log.i(TAG, "PTT key up (accessibility), code " + pttKey);
+            service.onHardwarePtt(false);
+            return true;
+        }
+        return false;
+    }
+}
