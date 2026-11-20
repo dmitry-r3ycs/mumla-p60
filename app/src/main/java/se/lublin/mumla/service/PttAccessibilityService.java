@@ -25,6 +25,44 @@ import se.lublin.mumla.Settings;
 public class PttAccessibilityService extends AccessibilityService {
     private static final String TAG = "MumlaP60";
 
+    /** Receives every key event while the diagnostics screen is open. */
+    public interface KeyListener {
+        void onAccessibilityKey(KeyEvent event);
+    }
+
+    /** Receives the next pressed key while the key selection dialog is open. */
+    public interface LearnListener {
+        void onKeyLearned(int keyCode);
+    }
+
+    private static volatile KeyListener sDiagnosticsListener;
+    private static volatile LearnListener sLearnListener;
+    private static volatile boolean sRunning;
+
+    public static void setDiagnosticsListener(KeyListener listener) {
+        sDiagnosticsListener = listener;
+    }
+
+    public static void setLearnListener(LearnListener listener) {
+        sLearnListener = listener;
+    }
+
+    public static boolean isRunning() {
+        return sRunning;
+    }
+
+    @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        sRunning = true;
+    }
+
+    @Override
+    public void onDestroy() {
+        sRunning = false;
+        super.onDestroy();
+    }
+
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         // Not used.
@@ -37,9 +75,22 @@ public class PttAccessibilityService extends AccessibilityService {
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
+        KeyListener diagnostics = sDiagnosticsListener;
+        if (diagnostics != null) {
+            diagnostics.onAccessibilityKey(event);
+            return false;
+        }
+        LearnListener learn = sLearnListener;
+        if (learn != null && event.getKeyCode() != KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                learn.onKeyLearned(event.getKeyCode());
+            }
+            return true;
+        }
+
         Settings settings = Settings.getInstance(this);
         int pttKey = settings.getPushToTalkKey();
-        if (pttKey == Settings.DEFAULT_PUSH_KEY || event.getKeyCode() != pttKey) {
+        if (pttKey <= 0 || event.getKeyCode() != pttKey) {
             return false;
         }
         if (!Settings.ARRAY_INPUT_METHOD_PTT.equals(settings.getInputMethod())) {

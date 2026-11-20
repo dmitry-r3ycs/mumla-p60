@@ -220,4 +220,12 @@
     <string name="pttBackgroundSumOn">Включено. Кнопка PTT работает, когда Mumla свёрнута.</string>
     <string name="pttAccessibilityLabel">Mumla PTT</string>
     <string name="pttAccessibilityDesc">Позволяет аппаратной кнопке PTT, выбранной в Mumla, работать, когда приложение свёрнуто или экран выключен. Обрабатывается только эта кнопка; содержимое экрана не читается.</string>
+    <string name="pttDiag">Диагностика кнопки PTT</string>
+    <string name="pttDiagSum">Показывает, как кнопки рации доходят до Android</string>
+    <string name="pttDiagHint">Нажмите PTT, подержите 2 секунды, отпустите. Затем отправьте этот журнал разработчику.</string>
+    <string name="pttDiagReady">Готово. Теперь нажмите кнопку PTT.</string>
+    <string name="pttDiagClear">Очистить</string>
+    <string name="pttDiagCopy">Копировать</string>
+    <string name="pttDiagShare">Отправить</string>
+    <string name="pttDiagCopied">Скопировано</string>
 </resources>

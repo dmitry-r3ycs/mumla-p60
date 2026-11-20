@@ -23,6 +23,7 @@ import java.util.List;
 
 import se.lublin.mumla.R;
 import se.lublin.mumla.Settings;
+import se.lublin.mumla.app.PttDiagnosticsActivity;
 import se.lublin.mumla.service.PttAccessibilityService;
 
 public class AudioSettingsFragment extends MumlaPreferenceFragment {
@@ -67,6 +68,14 @@ public class AudioSettingsFragment extends MumlaPreferenceFragment {
                 } catch (ActivityNotFoundException e) {
                     // No accessibility settings screen on this device
                 }
+                return true;
+            });
+        }
+
+        Preference pttDiagPref = findPreference("pttDiag");
+        if (pttDiagPref != null) {
+            pttDiagPref.setOnPreferenceClickListener(preference -> {
+                startActivity(new Intent(requireContext(), PttDiagnosticsActivity.class));
                 return true;
             });
         }

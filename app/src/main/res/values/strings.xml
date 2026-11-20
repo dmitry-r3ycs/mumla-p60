@@ -245,4 +245,12 @@
     <string name="pttBackgroundSumOn">On. The hardware PTT key works while Mumla is minimized.</string>
     <string name="pttAccessibilityLabel">Mumla PTT</string>
     <string name="pttAccessibilityDesc">Lets the hardware push-to-talk key selected in Mumla work while the app is minimized or the screen is off. Only that key is handled; the screen content is not read.</string>
+    <string name="pttDiag">PTT key diagnostics</string>
+    <string name="pttDiagSum">Shows how the hardware keys of the radio reach Android</string>
+    <string name="pttDiagHint">Press PTT, hold 2 seconds, release. Then send this log to the developer.</string>
+    <string name="pttDiagReady">Ready. Press the PTT key now.</string>
+    <string name="pttDiagClear">Clear</string>
+    <string name="pttDiagCopy">Copy</string>
+    <string name="pttDiagShare">Share</string>
+    <string name="pttDiagCopied">Copied</string>
 </resources>

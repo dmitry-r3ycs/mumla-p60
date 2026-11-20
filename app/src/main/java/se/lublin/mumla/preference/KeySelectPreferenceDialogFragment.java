@@ -12,6 +12,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.preference.PreferenceDialogFragmentCompat;
 
+import se.lublin.mumla.service.PttAccessibilityService;
 import se.lublin.mumla.R;
 
 public class KeySelectPreferenceDialogFragment extends PreferenceDialogFragmentCompat implements OnKeyListener {
@@ -55,6 +56,12 @@ public class KeySelectPreferenceDialogFragment extends PreferenceDialogFragmentC
         mCurrentValue = requireNonNull(preference.getSharedPreferences())
                 .getInt(preference.getKey(), 0);
         updateValueView();
+
+        // P60: some hardware keys never reach the window, only the accessibility service
+        PttAccessibilityService.setLearnListener(keyCode -> {
+            mCurrentValue = keyCode;
+            updateValueView();
+        });
     }
 
 
@@ -87,6 +94,7 @@ public class KeySelectPreferenceDialogFragment extends PreferenceDialogFragmentC
 
     @Override
     public void onDialogClosed(boolean positiveResult) {
+        PttAccessibilityService.setLearnListener(null);
         if (positiveResult) {
             KeySelectDialogPreference preference = (KeySelectDialogPreference) getPreference();
             if (preference.callChangeListener(mCurrentValue)) {
