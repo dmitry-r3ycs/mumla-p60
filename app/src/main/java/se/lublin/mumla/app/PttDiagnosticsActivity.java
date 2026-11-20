@@ -48,6 +48,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import se.lublin.mumla.R;
+import se.lublin.mumla.Settings;
+import se.lublin.mumla.service.MumlaService;
 import se.lublin.mumla.service.PttAccessibilityService;
 
 /**
@@ -132,6 +134,7 @@ public class PttDiagnosticsActivity extends Activity implements PttAccessibility
         log("Device: " + Build.MANUFACTURER + " " + Build.MODEL + ", Android " + Build.VERSION.RELEASE
                 + " (" + Build.DISPLAY + ")");
         log("Accessibility service Mumla PTT: " + (PttAccessibilityService.isRunning() ? "ON" : "OFF"));
+        logMumlaState();
     }
 
     @Override
@@ -157,6 +160,23 @@ public class PttDiagnosticsActivity extends Activity implements PttAccessibility
             mSession = null;
         }
         super.onDestroy();
+    }
+
+    private void logMumlaState() {
+        MumlaService service = MumlaService.getInstance();
+        boolean connected = service != null && service.isConnectionEstablished();
+        Settings settings = Settings.getInstance(this);
+        String state = "[MUMLA] connected=" + (connected ? "YES" : "NO")
+                + " mode=" + settings.getInputMethod()
+                + " toggle=" + settings.isPushToTalkToggle();
+        if (connected) {
+            try {
+                state += " talking=" + service.isTalking();
+            } catch (RuntimeException e) {
+                state += " talking=?";
+            }
+        }
+        log(state);
     }
 
     // --- key events ---------------------------------------------------------
@@ -234,7 +254,13 @@ public class PttDiagnosticsActivity extends Activity implements PttAccessibility
         mReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                log("[INT] " + intent.getAction() + describeExtras(intent.getExtras()));
+                log("[INT] " + intent.getAction()
+                        + (isInitialStickyBroadcast() ? " (sticky)" : "")
+                        + describeExtras(intent.getExtras()));
+                // Show what Mumla did with it a moment later
+                mHandler.postDelayed(() -> {
+                    if (!mDestroyed) logMumlaState();
+                }, 300);
             }
         };
         try {

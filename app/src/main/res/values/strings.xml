@@ -253,4 +253,5 @@
     <string name="pttDiagCopy">Copy</string>
     <string name="pttDiagShare">Share</string>
     <string name="pttDiagCopied">Copied</string>
+    <string name="pttNeedsPttMode">PTT key pressed, but the transmit mode is not Push to Talk (Settings - Audio)</string>
 </resources>

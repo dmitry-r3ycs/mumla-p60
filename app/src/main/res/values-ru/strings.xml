@@ -228,4 +228,5 @@
     <string name="pttDiagCopy">Копировать</string>
     <string name="pttDiagShare">Отправить</string>
     <string name="pttDiagCopied">Скопировано</string>
+    <string name="pttNeedsPttMode">Кнопка PTT нажата, но способ передачи не Push to Talk (Настройки - Звук)</string>
 </resources>

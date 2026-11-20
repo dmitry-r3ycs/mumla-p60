@@ -132,7 +132,24 @@ public class MumlaService extends HumlaService implements
      * broadcasts). The same press may arrive from both, so duplicates are dropped.
      */
     public void onHardwarePtt(boolean down) {
-        if (down == mHardwarePttDown) return;
+        if (!Settings.ARRAY_INPUT_METHOD_PTT.equals(mSettings.getInputMethod())) {
+            if (down) {
+                Toast.makeText(this, R.string.pttNeedsPttMode, Toast.LENGTH_SHORT).show();
+            }
+            return;
+        }
+        if (mSettings.isPushToTalkToggle()) {
+            // Toggle mode acts on release; drop a duplicate release that
+            // arrives from a second source for the same press.
+            if (down) {
+                mHardwarePttDown = true;
+            } else if (mHardwarePttDown) {
+                mHardwarePttDown = false;
+                onTalkKeyUp();
+            }
+            return;
+        }
+        // Hold-to-talk: both calls are idempotent, so never drop an event.
         mHardwarePttDown = down;
         if (down) {
             onTalkKeyDown();

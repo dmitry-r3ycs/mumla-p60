@@ -57,6 +57,8 @@ public class HardwarePttReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         String action = intent.getAction();
         if (action == null) return;
+        // A sticky broadcast replayed at registration is not a real key press
+        if (isInitialStickyBroadcast()) return;
         for (String down : DOWN_ACTIONS) {
             if (down.equals(action)) {
                 Log.i(TAG, "PTT down (broadcast " + action + ")");
