@@ -61,6 +61,13 @@
         android:title="@string/autoReconnect"
         app:iconSpaceReserved="false" />
 
+    <Preference
+        android:key="p60BatteryOptimization"
+        android:persistent="false"
+        android:summary="@string/p60BatterySum"
+        android:title="@string/p60Battery"
+        app:iconSpaceReserved="false" />
+
     <CheckBoxPreference
         android:defaultValue="false"
         android:key="forceTcp"

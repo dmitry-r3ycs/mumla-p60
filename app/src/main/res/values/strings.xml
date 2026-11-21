@@ -263,4 +263,8 @@
         <item>Voice Communication</item>
         <item>Unprocessed</item>
     </string-array>
+    <string name="p60WaitingReconnect">Connection lost, waiting to reconnect…</string>
+    <string name="p60Battery">Work in background without restrictions</string>
+    <string name="p60BatterySum">Off. Tap and allow, otherwise Android may put Mumla to sleep and it will not reconnect when the network returns.</string>
+    <string name="p60BatterySumOn">On. Android does not restrict Mumla in the background.</string>
 </resources>

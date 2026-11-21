@@ -238,4 +238,8 @@
         <item>Голосовая связь</item>
         <item>Без обработки</item>
     </string-array>
+    <string name="p60WaitingReconnect">Связь потеряна, ожидание переподключения…</string>
+    <string name="p60Battery">Работа в фоне без ограничений</string>
+    <string name="p60BatterySum">Выключено. Нажмите и разрешите, иначе Android может усыпить Mumla, и она не переподключится при появлении сети.</string>
+    <string name="p60BatterySumOn">Включено. Android не ограничивает Mumla в фоне.</string>
 </resources>

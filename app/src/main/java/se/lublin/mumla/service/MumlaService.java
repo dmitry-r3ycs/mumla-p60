@@ -22,11 +22,16 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.media.AudioManager;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.speech.tts.TextToSpeech;
 import android.util.Log;
@@ -122,6 +127,134 @@ public class MumlaService extends HumlaService implements
 
     private static volatile MumlaService sInstance;
 
+    // --- P60: reliable automatic reconnect while in the background ----------
+
+    /** How often a new connection attempt is made while the network is up. */
+    private static final int RECONNECT_RETRY_INTERVAL = 15000;
+    /** Delay before the first attempt after the connection or the network changed. */
+    private static final int RECONNECT_FIRST_DELAY = 3000;
+    /** Upper bound for holding the CPU awake without a successful reconnect. */
+    private static final long RECONNECT_WAKELOCK_TIMEOUT = 10 * 60 * 1000L;
+
+    private final Handler mReconnectHandler = new Handler(Looper.getMainLooper());
+    private boolean mReconnectWatchActive;
+    private PowerManager.WakeLock mReconnectWakeLock;
+    private ConnectivityManager.NetworkCallback mReconnectNetworkCallback;
+
+    private final Runnable mReconnectTick = new Runnable() {
+        @Override
+        public void run() {
+            if (!mReconnectWatchActive) return;
+            ConnectionState state = getConnectionState();
+            if (state == ConnectionState.CONNECTED) {
+                stopReconnectWatch();
+                return;
+            }
+            if (state != ConnectionState.CONNECTING) {
+                if (!isReconnecting()) {
+                    // Reconnecting was cancelled or is pointless (kicked, rejected...)
+                    stopReconnectWatch();
+                    return;
+                }
+                if (isNetworkAvailable()) {
+                    holdReconnectWakeLock();
+                    Log.i(TAG, "P60 reconnect: network is up, connecting");
+                    try {
+                        connect();
+                    } catch (RuntimeException e) {
+                        Log.w(TAG, "P60 reconnect: connect failed: " + e);
+                    }
+                } else {
+                    // Nothing to do until the network returns; let the CPU sleep.
+                    // The network callback wakes us up again.
+                    releaseReconnectWakeLock();
+                }
+            }
+            mReconnectHandler.postDelayed(this, RECONNECT_RETRY_INTERVAL);
+        }
+    };
+
+    private boolean isNetworkAvailable() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (cm == null) return true;
+        try {
+            NetworkInfo info = cm.getActiveNetworkInfo();
+            return info != null && info.isConnected();
+        } catch (RuntimeException e) {
+            return true;
+        }
+    }
+
+    private void holdReconnectWakeLock() {
+        try {
+            if (mReconnectWakeLock == null) {
+                PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+                mReconnectWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Mumla:Reconnect");
+                mReconnectWakeLock.setReferenceCounted(false);
+            }
+            mReconnectWakeLock.acquire(RECONNECT_WAKELOCK_TIMEOUT);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "P60 reconnect: wake lock failed: " + e);
+        }
+    }
+
+    private void releaseReconnectWakeLock() {
+        try {
+            if (mReconnectWakeLock != null && mReconnectWakeLock.isHeld()) {
+                mReconnectWakeLock.release();
+            }
+        } catch (RuntimeException e) {
+            // already released by its timeout
+        }
+    }
+
+    /** Starts watching the network and retrying until the connection is back. */
+    private void startReconnectWatch() {
+        mReconnectHandler.removeCallbacks(mReconnectTick);
+        mReconnectHandler.postDelayed(mReconnectTick, RECONNECT_FIRST_DELAY);
+        holdReconnectWakeLock();
+        if (mReconnectWatchActive) return;
+        mReconnectWatchActive = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            if (cm != null) {
+                mReconnectNetworkCallback = new ConnectivityManager.NetworkCallback() {
+                    @Override
+                    public void onAvailable(Network network) {
+                        // Called on a system thread as soon as any network comes back
+                        holdReconnectWakeLock();
+                        mReconnectHandler.post(() -> {
+                            if (!mReconnectWatchActive) return;
+                            mReconnectHandler.removeCallbacks(mReconnectTick);
+                            mReconnectHandler.postDelayed(mReconnectTick, RECONNECT_FIRST_DELAY);
+                        });
+                    }
+                };
+                try {
+                    cm.registerDefaultNetworkCallback(mReconnectNetworkCallback);
+                } catch (RuntimeException e) {
+                    Log.w(TAG, "P60 reconnect: cannot watch network: " + e);
+                    mReconnectNetworkCallback = null;
+                }
+            }
+        }
+    }
+
+    private void stopReconnectWatch() {
+        mReconnectWatchActive = false;
+        mReconnectHandler.removeCallbacks(mReconnectTick);
+        if (mReconnectNetworkCallback != null) {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            try {
+                if (cm != null) cm.unregisterNetworkCallback(mReconnectNetworkCallback);
+            } catch (RuntimeException e) {
+                // was not registered
+            }
+            mReconnectNetworkCallback = null;
+        }
+        releaseReconnectWakeLock();
+    }
+
     /** @return the running service, or null if it is not running. */
     public static MumlaService getInstance() {
         return sInstance;
@@ -168,9 +301,16 @@ public class MumlaService extends HumlaService implements
             }
 
             final String tor = mSettings.isTorEnabled() ? " (Tor)" : "";
-            mNotification = MumlaConnectionNotification.create(MumlaService.this,
-                    getString(R.string.mumlaConnecting) + tor,
-                    MumlaService.this);
+            if (mNotification != null) {
+                // P60: kept from before the connection was lost, so the service
+                // never leaves the foreground while reconnecting.
+                mNotification.setCustomContentText(getString(R.string.mumlaConnecting) + tor);
+                mNotification.setActionsShown(false);
+            } else {
+                mNotification = MumlaConnectionNotification.create(MumlaService.this,
+                        getString(R.string.mumlaConnecting) + tor,
+                        MumlaService.this);
+            }
             mNotification.show();
 
             mErrorShown = false;
@@ -188,9 +328,22 @@ public class MumlaService extends HumlaService implements
 
         @Override
         public void onDisconnected(HumlaException e) {
-            if (mNotification != null) {
-                mNotification.hide();
-                mNotification = null;
+            if (e != null && isReconnecting()) {
+                // P60: stay a foreground service while waiting for the network.
+                // Otherwise Android may stop the app in the background and a
+                // later reconnect would have no access to the microphone.
+                if (mNotification != null) {
+                    mNotification.setCustomContentText(getString(R.string.p60WaitingReconnect));
+                    mNotification.setActionsShown(false);
+                    mNotification.show();
+                }
+                startReconnectWatch();
+            } else {
+                stopReconnectWatch();
+                if (mNotification != null) {
+                    mNotification.hide();
+                    mNotification = null;
+                }
             }
             if (e != null && !mSuppressNotifications) {
                 mReconnectNotification =
@@ -369,6 +522,7 @@ public class MumlaService extends HumlaService implements
 
     @Override
     public void onDestroy() {
+        stopReconnectWatch();
         if (mNotification != null) {
             mNotification.hide();
             mNotification = null;
@@ -411,6 +565,7 @@ public class MumlaService extends HumlaService implements
         //  a Runnable post()ed to a Handler. The reason could only be that
         //  HumlaConnect.connect() or disconnect() is called again in the
         //  middle of all this? And it's made possible by the Handler?
+        stopReconnectWatch();
         try {
             super.onConnectionSynchronized();
         } catch (RuntimeException e) {
@@ -628,6 +783,11 @@ public class MumlaService extends HumlaService implements
             mReconnectNotification = null;
         }
         super.cancelReconnect();
+        stopReconnectWatch();
+        if (mNotification != null && !isConnectionEstablished()) {
+            mNotification.hide();
+            mNotification = null;
+        }
     }
 
     @Override
