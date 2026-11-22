@@ -37,6 +37,8 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
+    <!-- P60 diagnostics: list paired headsets and see their button events -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BROADCAST_STICKY" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- P60 PTT diagnostics: look for PTT broadcast names in installed apps -->

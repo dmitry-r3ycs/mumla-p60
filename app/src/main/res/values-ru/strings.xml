@@ -248,4 +248,5 @@
     <string name="p60EconomySum">В медленной мобильной сети (2G) звук передаётся с битрейтом 12 кбит/с пакетами по 60 мс. В быстрых сетях действуют ваши настройки.</string>
     <string name="p60EconomyOn">Медленная сеть: экономный режим звука</string>
     <string name="p60EconomyOff">Обычный режим звука</string>
+    <string name="p60BluetoothWaiting">Bluetooth-гарнитура не найдена. Звук переключится на неё автоматически, когда она подключится.</string>
 </resources>

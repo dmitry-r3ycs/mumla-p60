@@ -279,6 +279,17 @@ public class Settings {
         return preferences.getString(PREF_DEFAULT_USERNAME, DEFAULT_DEFAULT_USERNAME);
     }
 
+    /** P60: the user wants audio routed to a Bluetooth headset whenever one is available. */
+    public static final String PREF_BLUETOOTH_SCO = "p60BluetoothSco";
+
+    public boolean isBluetoothScoWanted() {
+        return preferences.getBoolean(PREF_BLUETOOTH_SCO, false);
+    }
+
+    public void setBluetoothScoWanted(boolean wanted) {
+        preferences.edit().putBoolean(PREF_BLUETOOTH_SCO, wanted).apply();
+    }
+
     /** P60: automatically lower the audio bitrate on slow (2G) mobile links. */
     public static final String PREF_ECONOMY_MODE = "p60EconomyMode";
 

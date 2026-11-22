@@ -68,6 +68,13 @@ public class PttDiagnosticsActivity extends Activity implements PttAccessibility
             "com.runbo.ptt.key.down", "com.runbo.ptt.key.up",
             "com.zello.ptt.down", "com.zello.ptt.up",
             "com.kodiak.intent.action.PTT_BUTTON",
+            // Bluetooth headsets and speaker-microphones
+            "android.bluetooth.headset.profile.action.AUDIO_STATE_CHANGED",
+            "android.bluetooth.headset.profile.action.CONNECTION_STATE_CHANGED",
+            "android.bluetooth.headset.action.VENDOR_SPECIFIC_HEADSET_EVENT",
+            "android.bluetooth.device.action.ACL_CONNECTED",
+            "android.bluetooth.device.action.ACL_DISCONNECTED",
+            "android.media.ACTION_SCO_AUDIO_STATE_UPDATED",
     };
     private static final int MAX_ACTIONS = 600;
     private static final int MAX_LOG_CHARS = 60000;
@@ -117,6 +124,12 @@ public class PttDiagnosticsActivity extends Activity implements PttAccessibility
         startMediaSession();
 
         new Thread(this::scanPackages, "ptt-scan").start();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && checkSelfPermission("android.permission.BLUETOOTH_CONNECT")
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{"android.permission.BLUETOOTH_CONNECT"}, 1);
+        }
     }
 
     private Button makeButton(int textRes, View.OnClickListener listener) {
@@ -137,12 +150,85 @@ public class PttDiagnosticsActivity extends Activity implements PttAccessibility
                 + " (" + Build.DISPLAY + ")");
         log("Accessibility service Mumla PTT: " + (PttAccessibilityService.isRunning() ? "ON" : "OFF"));
         logMumlaState();
+        logBluetoothDevices();
+    }
+
+    /** Lists paired Bluetooth devices so the type of a PTT accessory can be identified. */
+    private void logBluetoothDevices() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                    && checkSelfPermission("android.permission.BLUETOOTH_CONNECT")
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                log("[BT] no permission yet");
+                return;
+            }
+            android.bluetooth.BluetoothAdapter adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
+            if (adapter == null || !adapter.isEnabled()) {
+                log("[BT] Bluetooth is off");
+                return;
+            }
+            Set<android.bluetooth.BluetoothDevice> bonded = adapter.getBondedDevices();
+            if (bonded == null || bonded.isEmpty()) {
+                log("[BT] no paired devices");
+                return;
+            }
+            for (android.bluetooth.BluetoothDevice device : bonded) {
+                StringBuilder sb = new StringBuilder("[BT] ");
+                sb.append(device.getName()).append(" type=").append(device.getType());
+                if (device.getBluetoothClass() != null) {
+                    sb.append(" class=0x").append(Integer.toHexString(device.getBluetoothClass().getDeviceClass()));
+                }
+                android.os.ParcelUuid[] uuids = device.getUuids();
+                if (uuids != null) {
+                    sb.append(" uuids=");
+                    for (android.os.ParcelUuid uuid : uuids) {
+                        String text = uuid.toString();
+                        sb.append(text.length() >= 8 ? text.substring(4, 8) : text).append(' ');
+                    }
+                }
+                log(sb.toString().trim());
+            }
+        } catch (RuntimeException e) {
+            log("[BT] " + e);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        logBluetoothDevices();
+        registerActions();
+    }
+
+    /** Makes this screen the target of headset media buttons by playing a moment of silence. */
+    private void playSilence() {
+        try {
+            int sampleRate = 8000;
+            short[] silence = new short[sampleRate / 4];
+            android.media.AudioTrack track = new android.media.AudioTrack(
+                    android.media.AudioManager.STREAM_MUSIC, sampleRate,
+                    android.media.AudioFormat.CHANNEL_OUT_MONO,
+                    android.media.AudioFormat.ENCODING_PCM_16BIT,
+                    silence.length * 2, android.media.AudioTrack.MODE_STATIC);
+            track.write(silence, 0, silence.length);
+            track.play();
+            mHandler.postDelayed(() -> {
+                try {
+                    track.release();
+                } catch (RuntimeException e) {
+                    // already released
+                }
+            }, 1000);
+        } catch (RuntimeException e) {
+            log("[MEDIA] silence: " + e);
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         PttAccessibilityService.setDiagnosticsListener(this);
+        playSilence();
     }
 
     @Override

@@ -273,4 +273,5 @@
     <string name="p60EconomySum">On a slow mobile link (2G) the audio is sent at 12 kbit/s in 60 ms packets. On faster networks your own settings are used.</string>
     <string name="p60EconomyOn">Slow network: economy audio mode</string>
     <string name="p60EconomyOff">Normal audio mode</string>
+    <string name="p60BluetoothWaiting">No Bluetooth headset found. Audio will switch to it automatically when it connects.</string>
 </resources>

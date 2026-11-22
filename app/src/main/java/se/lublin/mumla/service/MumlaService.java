@@ -18,9 +18,12 @@
 package se.lublin.mumla.service;
 
 import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.media.AudioDeviceCallback;
+import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.net.LinkProperties;
@@ -318,7 +321,77 @@ public class MumlaService extends HumlaService implements
         mReconnectHandler.postDelayed(mPingWatchdog, PING_CHECK_INTERVAL);
     }
 
+    // --- P60: Bluetooth headset audio remembered across connections ----------
+
+    private AudioDeviceCallback mAudioDeviceCallback;
+
+    /** @return true if a Bluetooth headset with a voice channel is connected to the device. */
+    public static boolean isBluetoothHeadsetPresent(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
+        try {
+            AudioManager am = (AudioManager) context.getSystemService(AUDIO_SERVICE);
+            if (am == null) return false;
+            for (AudioDeviceInfo device : am.getDevices(AudioManager.GET_DEVICES_ALL)) {
+                if (device.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) return true;
+            }
+        } catch (RuntimeException e) {
+            // fall through
+        }
+        return false;
+    }
+
+    private final Runnable mApplyBluetoothPreference = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                if (!mSettings.isBluetoothScoWanted()) return;
+                if (!isConnectionEstablished()) return;
+                if (usingBluetoothSco()) return;
+                if (!isBluetoothHeadsetPresent(MumlaService.this)) return;
+                Log.i(TAG, "P60 bluetooth: switching audio to the headset");
+                enableBluetoothSco();
+            } catch (RuntimeException e) {
+                Log.w(TAG, "P60 bluetooth: cannot enable: " + e);
+            }
+        }
+    };
+
+    private void startBluetoothWatch() {
+        stopBluetoothWatch();
+        mReconnectHandler.postDelayed(mApplyBluetoothPreference, 1500);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (am == null) return;
+        mAudioDeviceCallback = new AudioDeviceCallback() {
+            @Override
+            public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
+                // A headset was switched on or came back into range
+                mReconnectHandler.removeCallbacks(mApplyBluetoothPreference);
+                mReconnectHandler.postDelayed(mApplyBluetoothPreference, 2000);
+            }
+        };
+        try {
+            am.registerAudioDeviceCallback(mAudioDeviceCallback, mReconnectHandler);
+        } catch (RuntimeException e) {
+            mAudioDeviceCallback = null;
+        }
+    }
+
+    private void stopBluetoothWatch() {
+        mReconnectHandler.removeCallbacks(mApplyBluetoothPreference);
+        if (mAudioDeviceCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+            try {
+                if (am != null) am.unregisterAudioDeviceCallback(mAudioDeviceCallback);
+            } catch (RuntimeException e) {
+                // was not registered
+            }
+        }
+        mAudioDeviceCallback = null;
+    }
+
     private void stopLinkWatch() {
+        stopBluetoothWatch();
         mReconnectHandler.removeCallbacks(mPingWatchdog);
         if (mLinkCallback != null) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
@@ -786,6 +859,7 @@ public class MumlaService extends HumlaService implements
             return;
         }
         startLinkWatch();
+        startBluetoothWatch();
 
         // Restore mute/deafen state
         if(mSettings.isMuted() || mSettings.isDeafened()) {

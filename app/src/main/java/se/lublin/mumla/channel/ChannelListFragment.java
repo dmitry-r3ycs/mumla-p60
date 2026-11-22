@@ -59,6 +59,7 @@ import se.lublin.humla.util.HumlaObserver;
 import se.lublin.humla.util.IHumlaObserver;
 import se.lublin.mumla.R;
 import se.lublin.mumla.Settings;
+import se.lublin.mumla.service.MumlaService;
 import se.lublin.mumla.db.DatabaseProvider;
 import se.lublin.mumla.util.HumlaServiceFragment;
 
@@ -331,8 +332,14 @@ public class ChannelListFragment extends HumlaServiceFragment implements OnChann
             return false;
         } else if (itemId == R.id.menu_bluetooth) {
             item.setChecked(!item.isChecked());
+            // P60: remember the choice so it is restored after every (re)connect
+            Settings.getInstance(requireContext()).setBluetoothScoWanted(item.isChecked());
             if (item.isChecked()) {
                 session.enableBluetoothSco();
+                if (!MumlaService.isBluetoothHeadsetPresent(requireContext())) {
+                    android.widget.Toast.makeText(requireContext(), R.string.p60BluetoothWaiting,
+                            android.widget.Toast.LENGTH_LONG).show();
+                }
             } else {
                 session.disableBluetoothSco();
             }
