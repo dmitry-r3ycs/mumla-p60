@@ -58,6 +58,7 @@ import se.lublin.humla.util.HumlaException;
 import se.lublin.humla.util.HumlaObserver;
 import se.lublin.mumla.R;
 import se.lublin.mumla.Settings;
+import se.lublin.mumla.app.MumlaActivity;
 import se.lublin.mumla.service.ipc.HardwarePttReceiver;
 import se.lublin.mumla.service.ipc.TalkBroadcastReceiver;
 import se.lublin.mumla.util.HtmlUtils;
@@ -265,6 +266,11 @@ public class MumlaService extends HumlaService implements
      * broadcasts). The same press may arrive from both, so duplicates are dropped.
      */
     public void onHardwarePtt(boolean down) {
+        if (down && !mSettings.isPttBackgroundEnabled() && !MumlaActivity.isVisible()) {
+            // Background PTT is switched off and Mumla is not on screen.
+            // Releases are still processed so a transmission can never get stuck.
+            return;
+        }
         if (!Settings.ARRAY_INPUT_METHOD_PTT.equals(mSettings.getInputMethod())) {
             if (down) {
                 Toast.makeText(this, R.string.pttNeedsPttMode, Toast.LENGTH_SHORT).show();

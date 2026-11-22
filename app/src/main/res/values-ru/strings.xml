@@ -215,9 +215,9 @@
     <string name="app_news_items_v3_7_3">• Активный угол PTT теперь отображается на Android 12 и выше, а также на светлом и темном фоне\n• На Android 16 и выше кнопка \"Назад\" снова запрашивает подтверждение перед отключением от сервера\n</string>
 
     <!-- Hytera P60 adaptation -->
-    <string name="pttBackground">Кнопка PTT в фоне</string>
-    <string name="pttBackgroundSum">Выключено. Нажмите и включите «Mumla PTT» в специальных возможностях, чтобы кнопка PTT работала, когда Mumla свёрнута или экран выключен.</string>
-    <string name="pttBackgroundSumOn">Включено. Кнопка PTT работает, когда Mumla свёрнута.</string>
+    <string name="pttBackground">Служба «Mumla PTT» для обычных клавиш</string>
+    <string name="pttBackgroundSum">Выключена. Нужна, только если PTT назначена на обычную клавишу (например, громкости) и она должна работать в фоне. Штатной кнопке PTT рации служба не нужна.</string>
+    <string name="pttBackgroundSumOn">Включена. Клавиша, назначенная как PTT, работает и когда Mumla свёрнута.</string>
     <string name="pttAccessibilityLabel">Mumla PTT</string>
     <string name="pttAccessibilityDesc">Позволяет аппаратной кнопке PTT, выбранной в Mumla, работать, когда приложение свёрнуто или экран выключен. Обрабатывается только эта кнопка; содержимое экрана не читается.</string>
     <string name="pttDiag">Диагностика кнопки PTT</string>
@@ -242,4 +242,6 @@
     <string name="p60Battery">Работа в фоне без ограничений</string>
     <string name="p60BatterySum">Выключено. Нажмите и разрешите, иначе Android может усыпить Mumla, и она не переподключится при появлении сети.</string>
     <string name="p60BatterySumOn">Включено. Android не ограничивает Mumla в фоне.</string>
+    <string name="pttBackgroundEnabled">PTT в фоне</string>
+    <string name="pttBackgroundEnabledSum">Кнопка PTT включает передачу, когда Mumla свёрнута или экран выключен. Если галочка снята, PTT работает, только пока открыт экран Mumla.</string>
 </resources>

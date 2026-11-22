@@ -76,6 +76,13 @@
             android:title="@string/pttKey"
             app:iconSpaceReserved="false"/>
 
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="pttBackgroundEnabled"
+            android:summary="@string/pttBackgroundEnabledSum"
+            android:title="@string/pttBackgroundEnabled"
+            app:iconSpaceReserved="false"/>
+
         <Preference
             android:key="pttBackground"
             android:persistent="false"

@@ -240,9 +240,9 @@
     <string name="donate_foss">Donate</string>
 
     <!-- Hytera P60 adaptation -->
-    <string name="pttBackground">PTT key in background</string>
-    <string name="pttBackgroundSum">Off. Tap and enable \"Mumla PTT\" in the accessibility settings so the hardware PTT key works while Mumla is minimized or the screen is off.</string>
-    <string name="pttBackgroundSumOn">On. The hardware PTT key works while Mumla is minimized.</string>
+    <string name="pttBackground">\"Mumla PTT\" service for ordinary keys</string>
+    <string name="pttBackgroundSum">Off. Only needed if PTT is assigned to an ordinary key (for example a volume key) and it must work in the background. The radio\'s own PTT button does not need it.</string>
+    <string name="pttBackgroundSumOn">On. A key assigned as PTT also works while Mumla is minimized.</string>
     <string name="pttAccessibilityLabel">Mumla PTT</string>
     <string name="pttAccessibilityDesc">Lets the hardware push-to-talk key selected in Mumla work while the app is minimized or the screen is off. Only that key is handled; the screen content is not read.</string>
     <string name="pttDiag">PTT key diagnostics</string>
@@ -267,4 +267,6 @@
     <string name="p60Battery">Work in background without restrictions</string>
     <string name="p60BatterySum">Off. Tap and allow, otherwise Android may put Mumla to sleep and it will not reconnect when the network returns.</string>
     <string name="p60BatterySumOn">On. Android does not restrict Mumla in the background.</string>
+    <string name="pttBackgroundEnabled">PTT in background</string>
+    <string name="pttBackgroundEnabledSum">The PTT button transmits while Mumla is minimized or the screen is off. When unchecked, PTT works only while the Mumla screen is open.</string>
 </resources>

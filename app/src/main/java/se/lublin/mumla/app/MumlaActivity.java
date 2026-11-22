@@ -395,6 +395,25 @@ public class MumlaActivity extends AppCompatActivity implements ListView.OnItemC
         mDrawerToggle.syncState();
     }
 
+    /** P60: true while the main Mumla screen is visible to the user. */
+    private static volatile boolean sVisible;
+
+    public static boolean isVisible() {
+        return sVisible;
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        sVisible = true;
+    }
+
+    @Override
+    protected void onStop() {
+        sVisible = false;
+        super.onStop();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();

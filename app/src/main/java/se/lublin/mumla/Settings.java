@@ -279,6 +279,13 @@ public class Settings {
         return preferences.getString(PREF_DEFAULT_USERNAME, DEFAULT_DEFAULT_USERNAME);
     }
 
+    /** P60: whether the hardware PTT key works while the Mumla screen is not visible. */
+    public static final String PREF_PTT_BACKGROUND_ENABLED = "pttBackgroundEnabled";
+
+    public boolean isPttBackgroundEnabled() {
+        return preferences.getBoolean(PREF_PTT_BACKGROUND_ENABLED, true);
+    }
+
     public boolean isPushToTalkToggle() {
         return preferences.getBoolean(PREF_PTT_TOGGLE, DEFAULT_PTT_TOGGLE);
     }

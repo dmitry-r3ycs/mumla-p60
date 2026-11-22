@@ -15,6 +15,7 @@ import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
 
 import se.lublin.mumla.Settings;
+import se.lublin.mumla.app.MumlaActivity;
 
 /**
  * Receives hardware key events even when Mumla is minimized or the screen is
@@ -94,6 +95,10 @@ public class PttAccessibilityService extends AccessibilityService {
             return false;
         }
         if (!Settings.ARRAY_INPUT_METHOD_PTT.equals(settings.getInputMethod())) {
+            return false;
+        }
+        if (!settings.isPttBackgroundEnabled() && !MumlaActivity.isVisible()) {
+            // Background PTT is switched off in the Mumla settings.
             return false;
         }
         MumlaService service = MumlaService.getInstance();
