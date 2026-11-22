@@ -131,6 +131,8 @@ public class PttDiagnosticsActivity extends Activity implements PttAccessibility
 
     private void writeHeader() {
         log(getString(R.string.pttDiagHint));
+        log("Mumla P60 version: " + se.lublin.mumla.BuildConfig.VERSION_NAME
+                + ", PTT in background: " + (Settings.getInstance(this).isPttBackgroundEnabled() ? "ON" : "OFF"));
         log("Device: " + Build.MANUFACTURER + " " + Build.MODEL + ", Android " + Build.VERSION.RELEASE
                 + " (" + Build.DISPLAY + ")");
         log("Accessibility service Mumla PTT: " + (PttAccessibilityService.isRunning() ? "ON" : "OFF"));

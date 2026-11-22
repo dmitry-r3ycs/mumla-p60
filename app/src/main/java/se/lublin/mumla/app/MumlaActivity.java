@@ -402,10 +402,24 @@ public class MumlaActivity extends AppCompatActivity implements ListView.OnItemC
         return sVisible;
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        sVisible = true;
+    /**
+     * P60: true only if the main Mumla screen is really in front of the user.
+     * Besides our own lifecycle flag this asks the system, so a stale flag can
+     * never make the app look visible while it is minimized or the screen is off.
+     */
+    public static boolean isOnScreen(android.content.Context context) {
+        if (!sVisible) return false;
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager)
+                    context.getSystemService(android.content.Context.POWER_SERVICE);
+            if (pm != null && !pm.isInteractive()) return false;
+            android.app.ActivityManager.RunningAppProcessInfo info =
+                    new android.app.ActivityManager.RunningAppProcessInfo();
+            android.app.ActivityManager.getMyMemoryState(info);
+            return info.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
+        } catch (RuntimeException e) {
+            return sVisible;
+        }
     }
 
     @Override
@@ -417,12 +431,14 @@ public class MumlaActivity extends AppCompatActivity implements ListView.OnItemC
     @Override
     protected void onResume() {
         super.onResume();
+        sVisible = true;
         Intent connectIntent = new Intent(this, MumlaService.class);
         bindService(connectIntent, mConnection, 0);
     }
 
     @Override
     protected void onPause() {
+        sVisible = false;
         super.onPause();
         if (mErrorDialog != null)
             mErrorDialog.dismiss();

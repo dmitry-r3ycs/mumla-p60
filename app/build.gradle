@@ -128,7 +128,7 @@ android {
             }
         }
         debug {
-            versionNameSuffix "-p60"
+            versionNameSuffix "-p60-build" + (System.getenv("GITHUB_RUN_NUMBER") ?: "dev")
             signingConfig = signingConfigs.p60
             if (android.hasProperty("signingConfigs")) {
                 if (signingConfigs.hasProperty("beta")) {

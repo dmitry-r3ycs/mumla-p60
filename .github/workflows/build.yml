@@ -41,17 +41,17 @@ jobs:
       - name: Collect APK
         run: |
           ls -R app/build/outputs/apk
-          cp "$(find app/build/outputs/apk/foss/debug -name '*.apk' | head -n 1)" mumla-p60.apk
+          cp "$(find app/build/outputs/apk/foss/debug -name '*.apk' | head -n 1)" "mumla-p60-build${{ github.run_number }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
           name: mumla-p60
-          path: mumla-p60.apk
+          path: mumla-p60-build${{ github.run_number }}.apk
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "build-${{ github.run_number }}" mumla-p60.apk \
+          gh release create "build-${{ github.run_number }}" "mumla-p60-build${{ github.run_number }}.apk" \
             --title "Mumla P60 - сборка ${{ github.run_number }}" \
-            --notes "Автоматическая сборка. Скачайте файл mumla-p60.apk и установите на рацию."
+            --notes "Автоматическая сборка. Скачайте файл APK и установите на рацию."

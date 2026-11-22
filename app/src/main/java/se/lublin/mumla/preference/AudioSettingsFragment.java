@@ -74,6 +74,8 @@ public class AudioSettingsFragment extends MumlaPreferenceFragment {
 
         Preference pttDiagPref = findPreference("pttDiag");
         if (pttDiagPref != null) {
+            pttDiagPref.setSummary(getString(R.string.pttDiagSum) + "\n"
+                    + se.lublin.mumla.BuildConfig.VERSION_NAME);
             pttDiagPref.setOnPreferenceClickListener(preference -> {
                 startActivity(new Intent(requireContext(), PttDiagnosticsActivity.class));
                 return true;

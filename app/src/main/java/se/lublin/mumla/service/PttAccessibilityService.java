@@ -97,7 +97,7 @@ public class PttAccessibilityService extends AccessibilityService {
         if (!Settings.ARRAY_INPUT_METHOD_PTT.equals(settings.getInputMethod())) {
             return false;
         }
-        if (!settings.isPttBackgroundEnabled() && !MumlaActivity.isVisible()) {
+        if (!settings.isPttBackgroundEnabled() && !MumlaActivity.isOnScreen(this)) {
             // Background PTT is switched off in the Mumla settings.
             return false;
         }

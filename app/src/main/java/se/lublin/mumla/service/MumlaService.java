@@ -266,7 +266,10 @@ public class MumlaService extends HumlaService implements
      * broadcasts). The same press may arrive from both, so duplicates are dropped.
      */
     public void onHardwarePtt(boolean down) {
-        if (down && !mSettings.isPttBackgroundEnabled() && !MumlaActivity.isVisible()) {
+        boolean allowed = mSettings.isPttBackgroundEnabled() || MumlaActivity.isOnScreen(this);
+        Log.i(TAG, "P60 PTT " + (down ? "down" : "up") + " background=" + mSettings.isPttBackgroundEnabled()
+                + " onScreen=" + MumlaActivity.isOnScreen(this) + " allowed=" + allowed);
+        if (down && !allowed) {
             // Background PTT is switched off and Mumla is not on screen.
             // Releases are still processed so a transmission can never get stuck.
             return;
