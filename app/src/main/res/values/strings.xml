@@ -269,4 +269,8 @@
     <string name="p60BatterySumOn">On. Android does not restrict Mumla in the background.</string>
     <string name="pttBackgroundEnabled">PTT in background</string>
     <string name="pttBackgroundEnabledSum">The PTT button transmits while Mumla is minimized or the screen is off. When unchecked, PTT works only while the Mumla screen is open.</string>
+    <string name="p60Economy">Economy mode on slow networks</string>
+    <string name="p60EconomySum">On a slow mobile link (2G) the audio is sent at 12 kbit/s in 60 ms packets. On faster networks your own settings are used.</string>
+    <string name="p60EconomyOn">Slow network: economy audio mode</string>
+    <string name="p60EconomyOff">Normal audio mode</string>
 </resources>

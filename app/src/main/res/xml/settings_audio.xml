@@ -144,6 +144,13 @@
             android:entryValues="@array/audioSampleRateValues"
             app:iconSpaceReserved="false"/>
 
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="p60EconomyMode"
+            android:summary="@string/p60EconomySum"
+            android:title="@string/p60Economy"
+            app:iconSpaceReserved="false"/>
+
         <se.lublin.mumla.preference.SeekBarDialogPreference
             android:key="input_bitrate"
             android:title="@string/inputQuality"

@@ -23,6 +23,8 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.media.AudioManager;
 import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.NetworkCapabilities;
 import android.net.Network;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -33,6 +35,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.speech.tts.TextToSpeech;
 import android.util.Log;
 import android.widget.Toast;
@@ -147,18 +150,19 @@ public class MumlaService extends HumlaService implements
         public void run() {
             if (!mReconnectWatchActive) return;
             ConnectionState state = getConnectionState();
-            if (state == ConnectionState.CONNECTED) {
+            if (state == ConnectionState.CONNECTED && !mForceReconnectPending) {
                 stopReconnectWatch();
                 return;
             }
             if (state != ConnectionState.CONNECTING) {
-                if (!isReconnecting()) {
+                if (!isReconnecting() && !mForceReconnectPending) {
                     // Reconnecting was cancelled or is pointless (kicked, rejected...)
                     stopReconnectWatch();
                     return;
                 }
                 if (isNetworkAvailable()) {
                     holdReconnectWakeLock();
+                    mForceReconnectPending = false;
                     Log.i(TAG, "P60 reconnect: network is up, connecting");
                     try {
                         connect();
@@ -174,6 +178,204 @@ public class MumlaService extends HumlaService implements
             mReconnectHandler.postDelayed(this, RECONNECT_RETRY_INTERVAL);
         }
     };
+
+    // --- P60: watch the live connection (network change, dead link, slow link) ---
+
+    /** No ping answer from the server for this long means the link is dead. */
+    private static final long PING_TIMEOUT = 20000;
+    private static final int PING_CHECK_INTERVAL = 5000;
+    /** Economy audio profile for slow (2G) links. */
+    private static final int ECONOMY_BITRATE = 12000;
+    private static final int ECONOMY_FRAMES_PER_PACKET = 6;
+    /** Estimated uplink speed, kbit/s: enter economy below, leave above. */
+    private static final int ECONOMY_ENTER_KBPS = 100;
+    private static final int ECONOMY_LEAVE_KBPS = 200;
+
+    /** True while we dropped a dead connection ourselves and are about to reconnect. */
+    private boolean mForceReconnectPending;
+    private ConnectivityManager.NetworkCallback mLinkCallback;
+    private Network mLinkNetwork;
+    private String mLinkAddresses;
+    private long mLastPingValue;
+    private long mLastPingChange;
+    private boolean mEconomyActive;
+    private boolean mEconomyEvaluated;
+
+    private final Runnable mPingWatchdog = new Runnable() {
+        @Override
+        public void run() {
+            if (mLinkCallback == null) return;
+            if (getConnectionState() == ConnectionState.CONNECTED) {
+                long now = SystemClock.elapsedRealtime();
+                long value = mLastPingValue;
+                try {
+                    value = getTCPLatency();
+                } catch (RuntimeException e) {
+                    // not connected right now
+                }
+                if (value != mLastPingValue) {
+                    mLastPingValue = value;
+                    mLastPingChange = now;
+                } else if (now - mLastPingChange > PING_TIMEOUT) {
+                    forceReconnect("no ping answer for " + (now - mLastPingChange) / 1000 + " s");
+                    return;
+                }
+            }
+            mReconnectHandler.postDelayed(this, PING_CHECK_INTERVAL);
+        }
+    };
+
+    /** Drops a connection that can no longer work and reconnects right away. */
+    private void forceReconnect(String reason) {
+        if (mForceReconnectPending) return;
+        if (getConnectionState() != ConnectionState.CONNECTED) return;
+        if (!mSettings.isAutoReconnectEnabled()) return;
+        Log.i(TAG, "P60 reconnect: forcing reconnect, " + reason);
+        mForceReconnectPending = true;
+        holdReconnectWakeLock();
+        try {
+            disconnect();
+        } catch (RuntimeException e) {
+            Log.w(TAG, "P60 reconnect: disconnect failed: " + e);
+        }
+        startReconnectWatch();
+    }
+
+    private static String describeAddresses(LinkProperties properties) {
+        if (properties == null) return "";
+        try {
+            return String.valueOf(properties.getLinkAddresses());
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    /** Starts watching the network the live connection runs over. */
+    private void startLinkWatch() {
+        stopLinkWatch();
+        mLinkNetwork = null;
+        mLinkAddresses = null;
+        mEconomyEvaluated = false;
+        mLastPingValue = Long.MIN_VALUE;
+        mLastPingChange = SystemClock.elapsedRealtime();
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return;
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        if (cm == null) return;
+        final ConnectivityManager.NetworkCallback callback = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(Network network) {
+                mReconnectHandler.post(() -> {
+                    if (mLinkCallback != this) return;
+                    if (mLinkNetwork != null && !mLinkNetwork.equals(network)) {
+                        mLinkNetwork = network;
+                        mLinkAddresses = null;
+                        forceReconnect("default network changed");
+                    } else {
+                        mLinkNetwork = network;
+                    }
+                });
+            }
+
+            @Override
+            public void onLinkPropertiesChanged(Network network, LinkProperties properties) {
+                final String addresses = describeAddresses(properties);
+                mReconnectHandler.post(() -> {
+                    if (mLinkCallback != this) return;
+                    if (mLinkAddresses != null && !mLinkAddresses.equals(addresses)) {
+                        mLinkAddresses = addresses;
+                        forceReconnect("IP address changed");
+                    } else {
+                        mLinkAddresses = addresses;
+                    }
+                });
+            }
+
+            @Override
+            public void onLost(Network network) {
+                mReconnectHandler.post(() -> {
+                    if (mLinkCallback != this) return;
+                    forceReconnect("network lost");
+                });
+            }
+
+            @Override
+            public void onCapabilitiesChanged(Network network, NetworkCapabilities capabilities) {
+                final boolean cellular = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
+                final int upKbps = capabilities.getLinkUpstreamBandwidthKbps();
+                mReconnectHandler.post(() -> {
+                    if (mLinkCallback != this) return;
+                    updateEconomyMode(cellular, upKbps);
+                });
+            }
+        };
+        mLinkCallback = callback;
+        try {
+            cm.registerDefaultNetworkCallback(callback);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "P60 link watch: cannot watch network: " + e);
+        }
+        mReconnectHandler.removeCallbacks(mPingWatchdog);
+        mReconnectHandler.postDelayed(mPingWatchdog, PING_CHECK_INTERVAL);
+    }
+
+    private void stopLinkWatch() {
+        mReconnectHandler.removeCallbacks(mPingWatchdog);
+        if (mLinkCallback != null) {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            try {
+                if (cm != null) cm.unregisterNetworkCallback(mLinkCallback);
+            } catch (RuntimeException e) {
+                // was not registered
+            }
+            mLinkCallback = null;
+        }
+    }
+
+    /**
+     * Switches to a low-bitrate audio profile on slow mobile links (2G) and
+     * back to the user's settings on faster ones.
+     */
+    private void updateEconomyMode(boolean cellular, int upKbps) {
+        boolean wanted;
+        if (!mSettings.isEconomyModeEnabled() || !cellular || upKbps <= 0) {
+            wanted = false;
+        } else if (mEconomyActive) {
+            wanted = upKbps < ECONOMY_LEAVE_KBPS;
+        } else {
+            wanted = upKbps < ECONOMY_ENTER_KBPS;
+        }
+        if (mEconomyEvaluated && wanted == mEconomyActive) return;
+        boolean changed = wanted != mEconomyActive;
+        boolean firstTime = !mEconomyEvaluated;
+        mEconomyEvaluated = true;
+        mEconomyActive = wanted;
+        if (firstTime && !wanted && !changed) {
+            // Fresh connection on a fast link: the user's settings are already applied.
+            return;
+        }
+        int bitrate = mSettings.getInputQuality();
+        int framesPerPacket = mSettings.getFramesPerPacket();
+        if (wanted) {
+            bitrate = Math.min(bitrate, ECONOMY_BITRATE);
+            framesPerPacket = Math.max(framesPerPacket, ECONOMY_FRAMES_PER_PACKET);
+        }
+        Log.i(TAG, "P60 economy mode " + (wanted ? "ON" : "OFF") + ", uplink " + upKbps
+                + " kbit/s, bitrate " + bitrate + ", frames per packet " + framesPerPacket);
+        Bundle extras = new Bundle();
+        extras.putInt(EXTRAS_INPUT_QUALITY, bitrate);
+        extras.putInt(EXTRAS_FRAMES_PER_PACKET, framesPerPacket);
+        try {
+            configureExtras(extras);
+        } catch (AudioException e) {
+            Log.w(TAG, "P60 economy mode: cannot apply: " + e);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "P60 economy mode: cannot apply: " + e);
+        }
+        if (changed) {
+            Toast.makeText(this, wanted ? R.string.p60EconomyOn : R.string.p60EconomyOff,
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
 
     private boolean isNetworkAvailable() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
@@ -337,7 +539,7 @@ public class MumlaService extends HumlaService implements
 
         @Override
         public void onDisconnected(HumlaException e) {
-            if (e != null && isReconnecting()) {
+            if ((e != null && isReconnecting()) || mForceReconnectPending) {
                 // P60: stay a foreground service while waiting for the network.
                 // Otherwise Android may stop the app in the background and a
                 // later reconnect would have no access to the microphone.
@@ -531,6 +733,7 @@ public class MumlaService extends HumlaService implements
 
     @Override
     public void onDestroy() {
+        stopLinkWatch();
         stopReconnectWatch();
         if (mNotification != null) {
             mNotification.hide();
@@ -574,6 +777,7 @@ public class MumlaService extends HumlaService implements
         //  a Runnable post()ed to a Handler. The reason could only be that
         //  HumlaConnect.connect() or disconnect() is called again in the
         //  middle of all this? And it's made possible by the Handler?
+        mForceReconnectPending = false;
         stopReconnectWatch();
         try {
             super.onConnectionSynchronized();
@@ -581,6 +785,7 @@ public class MumlaService extends HumlaService implements
             Log.d(TAG, "exception in onConnectionSynchronized: " + e);
             return;
         }
+        startLinkWatch();
 
         // Restore mute/deafen state
         if(mSettings.isMuted() || mSettings.isDeafened()) {
@@ -607,6 +812,7 @@ public class MumlaService extends HumlaService implements
 
     @Override
     public void onConnectionDisconnected(HumlaException e) {
+        stopLinkWatch();
         super.onConnectionDisconnected(e);
         try {
             unregisterReceiver(mTalkReceiver);
@@ -792,6 +998,7 @@ public class MumlaService extends HumlaService implements
             mReconnectNotification = null;
         }
         super.cancelReconnect();
+        mForceReconnectPending = false;
         stopReconnectWatch();
         if (mNotification != null && !isConnectionEstablished()) {
             mNotification.hide();

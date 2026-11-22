@@ -279,6 +279,13 @@ public class Settings {
         return preferences.getString(PREF_DEFAULT_USERNAME, DEFAULT_DEFAULT_USERNAME);
     }
 
+    /** P60: automatically lower the audio bitrate on slow (2G) mobile links. */
+    public static final String PREF_ECONOMY_MODE = "p60EconomyMode";
+
+    public boolean isEconomyModeEnabled() {
+        return preferences.getBoolean(PREF_ECONOMY_MODE, true);
+    }
+
     /** P60: whether the hardware PTT key works while the Mumla screen is not visible. */
     public static final String PREF_PTT_BACKGROUND_ENABLED = "pttBackgroundEnabled";
 
