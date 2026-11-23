@@ -249,4 +249,6 @@
     <string name="p60EconomyOn">Медленная сеть: экономный режим звука</string>
     <string name="p60EconomyOff">Обычный режим звука</string>
     <string name="p60BluetoothWaiting">Bluetooth-гарнитура не найдена. Звук переключится на неё автоматически, когда она подключится.</string>
+    <string name="p60QuitOnSwipe">Завершать при смахивании</string>
+    <string name="p60QuitOnSwipeSum">Если смахнуть Mumla из списка недавних приложений, она отключается от сервера и прекращает работу. Если галочка снята, продолжает работать в фоне.</string>
 </resources>

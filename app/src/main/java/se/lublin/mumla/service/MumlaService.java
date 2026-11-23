@@ -804,6 +804,39 @@ public class MumlaService extends HumlaService implements
         return new MumlaBinder(this);
     }
 
+    /**
+     * P60: the user swiped Mumla away from the recent apps list. Treat it as
+     * "quit": drop the connection, stop reconnecting and stop the service.
+     */
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        super.onTaskRemoved(rootIntent);
+        if (!mSettings.isQuitOnSwipeEnabled()) return;
+        Log.i(TAG, "P60: task removed, quitting");
+        mForceReconnectPending = false;
+        try {
+            if (isReconnecting()) cancelReconnect();
+        } catch (RuntimeException e) {
+            Log.w(TAG, "P60 quit: " + e);
+        }
+        stopLinkWatch();
+        stopReconnectWatch();
+        try {
+            disconnect();
+        } catch (RuntimeException e) {
+            // was not connected
+        }
+        if (mNotification != null) {
+            mNotification.hide();
+            mNotification = null;
+        }
+        if (mReconnectNotification != null) {
+            mReconnectNotification.hide();
+            mReconnectNotification = null;
+        }
+        stopSelf();
+    }
+
     @Override
     public void onDestroy() {
         stopLinkWatch();

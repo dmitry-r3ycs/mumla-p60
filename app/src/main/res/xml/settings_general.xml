@@ -61,6 +61,13 @@
         android:title="@string/autoReconnect"
         app:iconSpaceReserved="false" />
 
+    <CheckBoxPreference
+        android:defaultValue="true"
+        android:key="p60QuitOnSwipe"
+        android:summary="@string/p60QuitOnSwipeSum"
+        android:title="@string/p60QuitOnSwipe"
+        app:iconSpaceReserved="false" />
+
     <Preference
         android:key="p60BatteryOptimization"
         android:persistent="false"

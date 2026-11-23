@@ -279,6 +279,13 @@ public class Settings {
         return preferences.getString(PREF_DEFAULT_USERNAME, DEFAULT_DEFAULT_USERNAME);
     }
 
+    /** P60: swiping the app away from the recent apps list disconnects and stops it. */
+    public static final String PREF_QUIT_ON_SWIPE = "p60QuitOnSwipe";
+
+    public boolean isQuitOnSwipeEnabled() {
+        return preferences.getBoolean(PREF_QUIT_ON_SWIPE, true);
+    }
+
     /** P60: the user wants audio routed to a Bluetooth headset whenever one is available. */
     public static final String PREF_BLUETOOTH_SCO = "p60BluetoothSco";
 
