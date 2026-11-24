@@ -282,6 +282,27 @@ public class PttDiagnosticsActivity extends Activity implements PttAccessibility
             }
         }
         log(state);
+
+        // Everything that shapes the outgoing voice, to find the cause of bad audio
+        String audio = "[AUDIO] source=" + settings.getAudioSource()
+                + " bitrate=" + settings.getInputQuality()
+                + " framesPerPacket=" + settings.getFramesPerPacket()
+                + " gain=" + settings.getAmplitudeBoostMultiplier()
+                + " preprocessor=" + settings.isPreprocessorEnabled()
+                + " echo=" + settings.getEchoCancellationMethod()
+                + " handset=" + settings.isHandsetMode()
+                + " halfDuplex=" + settings.isHalfDuplex()
+                + " economySetting=" + settings.isEconomyModeEnabled()
+                + " bluetoothSetting=" + settings.isBluetoothScoWanted();
+        if (connected) {
+            try {
+                audio += " economyNow=" + service.isEconomyActive()
+                        + " bluetoothNow=" + service.usingBluetoothSco();
+            } catch (RuntimeException e) {
+                // not available right now
+            }
+        }
+        log(audio);
     }
 
     // --- key events ---------------------------------------------------------

@@ -673,6 +673,11 @@ public class MumlaService extends HumlaService implements
         releaseReconnectWakeLock();
     }
 
+    /** P60 diagnostics: whether the low-bitrate profile is in effect right now. */
+    public boolean isEconomyActive() {
+        return mEconomyActive;
+    }
+
     /** @return the running service, or null if it is not running. */
     public static MumlaService getInstance() {
         return sInstance;

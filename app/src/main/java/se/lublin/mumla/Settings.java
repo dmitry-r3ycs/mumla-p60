@@ -298,10 +298,11 @@ public class Settings {
     }
 
     /** P60: automatically lower the audio bitrate on slow (2G) mobile links. */
-    public static final String PREF_ECONOMY_MODE = "p60EconomyMode";
+    // New key since build 12: the mode is now off unless the user switches it on
+    public static final String PREF_ECONOMY_MODE = "p60EconomyMode2";
 
     public boolean isEconomyModeEnabled() {
-        return preferences.getBoolean(PREF_ECONOMY_MODE, true);
+        return preferences.getBoolean(PREF_ECONOMY_MODE, false);
     }
 
     /** P60: whether the hardware PTT key works while the Mumla screen is not visible. */

@@ -145,8 +145,8 @@
             app:iconSpaceReserved="false"/>
 
         <CheckBoxPreference
-            android:defaultValue="true"
-            android:key="p60EconomyMode"
+            android:defaultValue="false"
+            android:key="p60EconomyMode2"
             android:summary="@string/p60EconomySum"
             android:title="@string/p60Economy"
             app:iconSpaceReserved="false"/>
