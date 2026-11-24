@@ -138,10 +138,82 @@ public class MumlaService extends HumlaService implements
 
     /** How often a new connection attempt is made while the network is up. */
     private static final int RECONNECT_RETRY_INTERVAL = 15000;
+    /** Pause before attempt number N (the last value repeats): quick at first, rare later. */
+    private static final int[] RECONNECT_BACKOFF = {3000, 15000, 15000, 30000, 60000, 120000, 300000};
+    private static final String RECONNECT_ALARM_ACTION = "se.lublin.mumla.p60.RECONNECT_ALARM";
     /** Delay before the first attempt after the connection or the network changed. */
     private static final int RECONNECT_FIRST_DELAY = 3000;
     /** Upper bound for holding the CPU awake without a successful reconnect. */
-    private static final long RECONNECT_WAKELOCK_TIMEOUT = 10 * 60 * 1000L;
+    private static final long RECONNECT_WAKELOCK_TIMEOUT = 40 * 1000L;
+
+    // --- P60: journal of connection events, shown on the diagnostics screen ---
+
+    private static final java.util.ArrayDeque<String> sEvents = new java.util.ArrayDeque<>();
+
+    public static void p60Event(String text) {
+        Log.i(TAG, "P60 " + text);
+        String line = new java.text.SimpleDateFormat("dd.MM HH:mm:ss", java.util.Locale.US)
+                .format(new java.util.Date()) + " " + text;
+        synchronized (sEvents) {
+            sEvents.addLast(line);
+            while (sEvents.size() > 150) sEvents.removeFirst();
+        }
+    }
+
+    public static java.util.List<String> getP60Events() {
+        synchronized (sEvents) {
+            return new java.util.ArrayList<>(sEvents);
+        }
+    }
+
+    /** Number of failed attempts in a row; selects the pause before the next one. */
+    private int mReconnectAttempts;
+    private long mNextReconnectTickAt;
+    private BroadcastReceiver mReconnectAlarmReceiver;
+    private android.app.PendingIntent mReconnectAlarmIntent;
+
+    private int nextReconnectDelay() {
+        int index = Math.min(mReconnectAttempts, RECONNECT_BACKOFF.length - 1);
+        return RECONNECT_BACKOFF[index];
+    }
+
+    /**
+     * Schedules the next reconnect check. A handler timer does not run while the
+     * CPU sleeps, so an alarm is set as well; the CPU is not kept awake in between.
+     */
+    private void scheduleReconnectTick(int delay) {
+        mNextReconnectTickAt = SystemClock.elapsedRealtime() + delay;
+        mReconnectHandler.removeCallbacks(mReconnectTick);
+        mReconnectHandler.postDelayed(mReconnectTick, delay);
+        if (delay < 10000) {
+            // Short pause: just stay awake for it
+            holdReconnectWakeLock();
+            return;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        try {
+            android.app.AlarmManager am = (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
+            if (am == null) return;
+            if (mReconnectAlarmIntent == null) {
+                Intent intent = new Intent(RECONNECT_ALARM_ACTION).setPackage(getPackageName());
+                mReconnectAlarmIntent = android.app.PendingIntent.getBroadcast(this, 0, intent,
+                        android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+            }
+            am.setAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    mNextReconnectTickAt, mReconnectAlarmIntent);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "P60 reconnect: cannot set alarm: " + e);
+        }
+    }
+
+    private void cancelReconnectAlarm() {
+        try {
+            android.app.AlarmManager am = (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
+            if (am != null && mReconnectAlarmIntent != null) am.cancel(mReconnectAlarmIntent);
+        } catch (RuntimeException e) {
+            // nothing to cancel
+        }
+    }
 
     private final Handler mReconnectHandler = new Handler(Looper.getMainLooper());
     private boolean mReconnectWatchActive;
@@ -152,6 +224,10 @@ public class MumlaService extends HumlaService implements
         @Override
         public void run() {
             if (!mReconnectWatchActive) return;
+            if (SystemClock.elapsedRealtime() < mNextReconnectTickAt - 1000) {
+                // Woken early (timer and alarm both fire); the real time has not come yet.
+                return;
+            }
             ConnectionState state = getConnectionState();
             if (state == ConnectionState.CONNECTED && !mForceReconnectPending) {
                 stopReconnectWatch();
@@ -166,19 +242,26 @@ public class MumlaService extends HumlaService implements
                 if (isNetworkAvailable()) {
                     holdReconnectWakeLock();
                     mForceReconnectPending = false;
-                    Log.i(TAG, "P60 reconnect: network is up, connecting");
+                    mReconnectAttempts++;
+                    p60Event("reconnect attempt " + mReconnectAttempts);
                     try {
                         connect();
                     } catch (RuntimeException e) {
                         Log.w(TAG, "P60 reconnect: connect failed: " + e);
                     }
+                    // If this attempt fails, onDisconnected schedules the next one
+                    // with a longer pause. This is only a safety net.
+                    scheduleReconnectTick(Math.max(RECONNECT_RETRY_INTERVAL, nextReconnectDelay()));
+                    return;
                 } else {
                     // Nothing to do until the network returns; let the CPU sleep.
                     // The network callback wakes us up again.
                     releaseReconnectWakeLock();
+                    scheduleReconnectTick(RECONNECT_BACKOFF[RECONNECT_BACKOFF.length - 1]);
+                    return;
                 }
             }
-            mReconnectHandler.postDelayed(this, RECONNECT_RETRY_INTERVAL);
+            scheduleReconnectTick(RECONNECT_RETRY_INTERVAL);
         }
     };
 
@@ -203,11 +286,15 @@ public class MumlaService extends HumlaService implements
     private long mLastPingChange;
     private boolean mEconomyActive;
     private boolean mEconomyEvaluated;
+    private long mEconomyChangedAt;
+    private long mPingTimeoutWindowStart;
+    private int mPingTimeoutCount;
+    private boolean mPingWatchdogDisabled;
 
     private final Runnable mPingWatchdog = new Runnable() {
         @Override
         public void run() {
-            if (mLinkCallback == null) return;
+            if (mLinkCallback == null || mPingWatchdogDisabled) return;
             if (getConnectionState() == ConnectionState.CONNECTED) {
                 long now = SystemClock.elapsedRealtime();
                 long value = mLastPingValue;
@@ -220,6 +307,18 @@ public class MumlaService extends HumlaService implements
                     mLastPingValue = value;
                     mLastPingChange = now;
                 } else if (now - mLastPingChange > PING_TIMEOUT) {
+                    // Safety: if this fires again and again, the check itself is
+                    // wrong for this server; switch it off instead of reconnecting forever.
+                    if (now - mPingTimeoutWindowStart > 10 * 60 * 1000L) {
+                        mPingTimeoutWindowStart = now;
+                        mPingTimeoutCount = 0;
+                    }
+                    mPingTimeoutCount++;
+                    if (mPingTimeoutCount > 3) {
+                        mPingWatchdogDisabled = true;
+                        p60Event("ping check switched off: too many timeouts in 10 minutes");
+                        return;
+                    }
                     forceReconnect("no ping answer for " + (now - mLastPingChange) / 1000 + " s");
                     return;
                 }
@@ -233,7 +332,7 @@ public class MumlaService extends HumlaService implements
         if (mForceReconnectPending) return;
         if (getConnectionState() != ConnectionState.CONNECTED) return;
         if (!mSettings.isAutoReconnectEnabled()) return;
-        Log.i(TAG, "P60 reconnect: forcing reconnect, " + reason);
+        p60Event("forced reconnect: " + reason);
         mForceReconnectPending = true;
         holdReconnectWakeLock();
         try {
@@ -284,12 +383,20 @@ public class MumlaService extends HumlaService implements
                 final String addresses = describeAddresses(properties);
                 mReconnectHandler.post(() -> {
                     if (mLinkCallback != this) return;
-                    if (mLinkAddresses != null && !mLinkAddresses.equals(addresses)) {
-                        mLinkAddresses = addresses;
-                        forceReconnect("IP address changed");
-                    } else {
-                        mLinkAddresses = addresses;
+                    // New addresses appearing is harmless (IPv6 adds them all the time);
+                    // only an address that vanished can break the live connection.
+                    boolean lost = false;
+                    if (mLinkAddresses != null) {
+                        for (String old : mLinkAddresses.split(",")) {
+                            String trimmed = old.replace("[", "").replace("]", "").trim();
+                            if (trimmed.length() > 0 && !addresses.contains(trimmed)) {
+                                lost = true;
+                                break;
+                            }
+                        }
                     }
+                    mLinkAddresses = addresses;
+                    if (lost) forceReconnect("IP address changed");
                 });
             }
 
@@ -418,6 +525,12 @@ public class MumlaService extends HumlaService implements
             wanted = upKbps < ECONOMY_ENTER_KBPS;
         }
         if (mEconomyEvaluated && wanted == mEconomyActive) return;
+        long now = SystemClock.elapsedRealtime();
+        if (mEconomyEvaluated && now - mEconomyChangedAt < 60000) {
+            // The speed estimate jitters; do not restart the audio more than once a minute.
+            return;
+        }
+        mEconomyChangedAt = now;
         boolean changed = wanted != mEconomyActive;
         boolean firstTime = !mEconomyEvaluated;
         mEconomyEvaluated = true;
@@ -432,7 +545,7 @@ public class MumlaService extends HumlaService implements
             bitrate = Math.min(bitrate, ECONOMY_BITRATE);
             framesPerPacket = Math.max(framesPerPacket, ECONOMY_FRAMES_PER_PACKET);
         }
-        Log.i(TAG, "P60 economy mode " + (wanted ? "ON" : "OFF") + ", uplink " + upKbps
+        p60Event("economy mode " + (wanted ? "ON" : "OFF") + ", uplink " + upKbps
                 + " kbit/s, bitrate " + bitrate + ", frames per packet " + framesPerPacket);
         Bundle extras = new Bundle();
         extras.putInt(EXTRAS_INPUT_QUALITY, bitrate);
@@ -486,11 +599,30 @@ public class MumlaService extends HumlaService implements
 
     /** Starts watching the network and retrying until the connection is back. */
     private void startReconnectWatch() {
-        mReconnectHandler.removeCallbacks(mReconnectTick);
-        mReconnectHandler.postDelayed(mReconnectTick, RECONNECT_FIRST_DELAY);
-        holdReconnectWakeLock();
+        // The pause grows with every failed attempt in a row, so an unreachable
+        // server does not drain the battery with a connection attempt every few seconds.
+        scheduleReconnectTick(nextReconnectDelay());
         if (mReconnectWatchActive) return;
         mReconnectWatchActive = true;
+        if (mReconnectAlarmReceiver == null) {
+            mReconnectAlarmReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    holdReconnectWakeLock();
+                    mReconnectHandler.post(mReconnectTick);
+                }
+            };
+            try {
+                IntentFilter filter = new IntentFilter(RECONNECT_ALARM_ACTION);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    registerReceiver(mReconnectAlarmReceiver, filter, RECEIVER_NOT_EXPORTED);
+                } else {
+                    registerReceiver(mReconnectAlarmReceiver, filter);
+                }
+            } catch (RuntimeException e) {
+                mReconnectAlarmReceiver = null;
+            }
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
             if (cm != null) {
@@ -501,8 +633,9 @@ public class MumlaService extends HumlaService implements
                         holdReconnectWakeLock();
                         mReconnectHandler.post(() -> {
                             if (!mReconnectWatchActive) return;
-                            mReconnectHandler.removeCallbacks(mReconnectTick);
-                            mReconnectHandler.postDelayed(mReconnectTick, RECONNECT_FIRST_DELAY);
+                            // The network is back: try soon and start the pauses over
+                            mReconnectAttempts = 0;
+                            scheduleReconnectTick(RECONNECT_FIRST_DELAY);
                         });
                     }
                 };
@@ -519,6 +652,15 @@ public class MumlaService extends HumlaService implements
     private void stopReconnectWatch() {
         mReconnectWatchActive = false;
         mReconnectHandler.removeCallbacks(mReconnectTick);
+        cancelReconnectAlarm();
+        if (mReconnectAlarmReceiver != null) {
+            try {
+                unregisterReceiver(mReconnectAlarmReceiver);
+            } catch (IllegalArgumentException e) {
+                // was not registered
+            }
+            mReconnectAlarmReceiver = null;
+        }
         if (mReconnectNetworkCallback != null) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
             try {
@@ -812,7 +954,7 @@ public class MumlaService extends HumlaService implements
     public void onTaskRemoved(Intent rootIntent) {
         super.onTaskRemoved(rootIntent);
         if (!mSettings.isQuitOnSwipeEnabled()) return;
-        Log.i(TAG, "P60: task removed, quitting");
+        p60Event("swiped away, quitting");
         mForceReconnectPending = false;
         try {
             if (isReconnecting()) cancelReconnect();
@@ -884,6 +1026,8 @@ public class MumlaService extends HumlaService implements
         //  HumlaConnect.connect() or disconnect() is called again in the
         //  middle of all this? And it's made possible by the Handler?
         mForceReconnectPending = false;
+        mReconnectAttempts = 0;
+        p60Event("connected");
         stopReconnectWatch();
         try {
             super.onConnectionSynchronized();
@@ -919,6 +1063,7 @@ public class MumlaService extends HumlaService implements
 
     @Override
     public void onConnectionDisconnected(HumlaException e) {
+        p60Event("disconnected" + (e != null ? ": " + e.getMessage() : ""));
         stopLinkWatch();
         super.onConnectionDisconnected(e);
         try {

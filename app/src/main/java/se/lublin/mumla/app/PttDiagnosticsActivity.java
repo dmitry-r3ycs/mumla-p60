@@ -151,6 +151,23 @@ public class PttDiagnosticsActivity extends Activity implements PttAccessibility
         log("Accessibility service Mumla PTT: " + (PttAccessibilityService.isRunning() ? "ON" : "OFF"));
         logMumlaState();
         logBluetoothDevices();
+        try {
+            boolean unrestricted = true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+                unrestricted = pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
+            }
+            log("Battery unrestricted: " + (unrestricted ? "YES" : "NO"));
+        } catch (RuntimeException e) {
+            // not important
+        }
+        java.util.List<String> events = MumlaService.getP60Events();
+        log("[LOG] connection events: " + events.size());
+        if (!events.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (String event : events) sb.append("[LOG] ").append(event).append('\n');
+            log(sb.toString().trim());
+        }
     }
 
     /** Lists paired Bluetooth devices so the type of a PTT accessory can be identified. */
