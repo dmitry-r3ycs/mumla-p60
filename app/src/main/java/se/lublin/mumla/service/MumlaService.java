@@ -82,7 +82,9 @@ public class MumlaService extends HumlaService implements
     /** Undocumented constant that permits a proximity-sensing wake lock. */
     public static final int PROXIMITY_SCREEN_OFF_WAKE_LOCK = 32;
     public static final int TTS_THRESHOLD = 250; // Maximum number of characters to read
-    public static final int RECONNECT_DELAY = 10000;
+    // P60: the library's own retry timer is pushed far out; reconnecting is driven
+    // by the reconnect watch below, which backs off and survives CPU sleep.
+    public static final int RECONNECT_DELAY = 10 * 60 * 1000;
 
     private Settings mSettings;
     private MumlaConnectionNotification mNotification;
@@ -243,6 +245,7 @@ public class MumlaService extends HumlaService implements
                     holdReconnectWakeLock();
                     mForceReconnectPending = false;
                     mReconnectAttempts++;
+                    mSettings.applyPingInterval();
                     p60Event("reconnect attempt " + mReconnectAttempts);
                     try {
                         connect();
@@ -290,6 +293,8 @@ public class MumlaService extends HumlaService implements
     private long mPingTimeoutWindowStart;
     private int mPingTimeoutCount;
     private boolean mPingWatchdogDisabled;
+    /** Ping interval the current connection was started with, seconds. */
+    private int mConnectedPingInterval = Settings.PING_INTERVAL_NORMAL;
 
     private final Runnable mPingWatchdog = new Runnable() {
         @Override
@@ -306,7 +311,7 @@ public class MumlaService extends HumlaService implements
                 if (value != mLastPingValue) {
                     mLastPingValue = value;
                     mLastPingChange = now;
-                } else if (now - mLastPingChange > PING_TIMEOUT) {
+                } else if (now - mLastPingChange > Math.max(PING_TIMEOUT, mConnectedPingInterval * 2500L)) {
                     // Safety: if this fires again and again, the check itself is
                     // wrong for this server; switch it off instead of reconnecting forever.
                     if (now - mPingTimeoutWindowStart > 10 * 60 * 1000L) {
@@ -1032,7 +1037,8 @@ public class MumlaService extends HumlaService implements
         //  middle of all this? And it's made possible by the Handler?
         mForceReconnectPending = false;
         mReconnectAttempts = 0;
-        p60Event("connected");
+        mConnectedPingInterval = Integer.getInteger(Settings.PING_INTERVAL_PROPERTY, Settings.PING_INTERVAL_NORMAL);
+        p60Event("connected, ping every " + mConnectedPingInterval + " s");
         stopReconnectWatch();
         try {
             super.onConnectionSynchronized();
@@ -1111,6 +1117,10 @@ public class MumlaService extends HumlaService implements
                 setProximitySensorOn(isConnectionEstablished() && mSettings.isHandsetMode());
                 changedExtras.putInt(HumlaService.EXTRAS_AUDIO_STREAM, mSettings.isHandsetMode() ?
                                      AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
+                break;
+            case Settings.PREF_BATTERY_SAVER:
+                // Takes effect when the next connection starts
+                mSettings.applyPingInterval();
                 break;
             case Settings.PREF_AUDIO_SOURCE:
                 changedExtras.putInt(HumlaService.EXTRAS_AUDIO_SOURCE, mSettings.getAudioSource());

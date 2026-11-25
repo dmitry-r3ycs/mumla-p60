@@ -62,6 +62,13 @@
         app:iconSpaceReserved="false" />
 
     <CheckBoxPreference
+        android:defaultValue="false"
+        android:key="p60BatterySaver"
+        android:summary="@string/p60BatterySaverSum"
+        android:title="@string/p60BatterySaver"
+        app:iconSpaceReserved="false" />
+
+    <CheckBoxPreference
         android:defaultValue="true"
         android:key="p60QuitOnSwipe"
         android:summary="@string/p60QuitOnSwipeSum"

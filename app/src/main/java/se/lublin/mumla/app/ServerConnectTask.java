@@ -56,6 +56,7 @@ public class ServerConnectTask extends AsyncTask<Server, Void, Intent> {
         /* Convert input method defined in settings to an integer format used by Humla. */
         int inputMethod = mSettings.getHumlaInputMethod();
 
+        mSettings.applyPingInterval();
         int audioSource = mSettings.getAudioSource();
         int audioStream = mSettings.isHandsetMode() ?
                 AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC;

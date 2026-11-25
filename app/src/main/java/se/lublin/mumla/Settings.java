@@ -279,6 +279,26 @@ public class Settings {
         return preferences.getString(PREF_DEFAULT_USERNAME, DEFAULT_DEFAULT_USERNAME);
     }
 
+    /** P60: battery saver - talk to the server less often while nobody speaks. */
+    public static final String PREF_BATTERY_SAVER = "p60BatterySaver";
+    /** System property read by the (patched) network library when a connection starts. */
+    public static final String PING_INTERVAL_PROPERTY = "mumla.p60.pingInterval";
+    public static final int PING_INTERVAL_NORMAL = 5;
+    public static final int PING_INTERVAL_SAVER = 20;
+
+    public boolean isBatterySaverEnabled() {
+        return preferences.getBoolean(PREF_BATTERY_SAVER, false);
+    }
+
+    public int getPingIntervalSeconds() {
+        return isBatterySaverEnabled() ? PING_INTERVAL_SAVER : PING_INTERVAL_NORMAL;
+    }
+
+    /** Publishes the ping interval for the next connection. */
+    public void applyPingInterval() {
+        System.setProperty(PING_INTERVAL_PROPERTY, String.valueOf(getPingIntervalSeconds()));
+    }
+
     /** P60: swiping the app away from the recent apps list disconnects and stops it. */
     public static final String PREF_QUIT_ON_SWIPE = "p60QuitOnSwipe";
 
