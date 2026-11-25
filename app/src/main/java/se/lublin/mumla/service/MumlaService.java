@@ -437,6 +437,21 @@ public class MumlaService extends HumlaService implements
 
     private AudioDeviceCallback mAudioDeviceCallback;
 
+    /**
+     * The user switched the headset microphone on in this session. It is restored
+     * only after an automatic reconnect; it is never switched on by itself when a
+     * headset appears or when the user connects again by hand.
+     */
+    private static volatile boolean sBluetoothWanted;
+
+    public static void setBluetoothWanted(boolean wanted) {
+        sBluetoothWanted = wanted;
+    }
+
+    public static boolean isBluetoothWanted() {
+        return sBluetoothWanted;
+    }
+
     /** @return true if a Bluetooth headset with a voice channel is connected to the device. */
     public static boolean isBluetoothHeadsetPresent(Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
@@ -456,7 +471,7 @@ public class MumlaService extends HumlaService implements
         @Override
         public void run() {
             try {
-                if (!mSettings.isBluetoothScoWanted()) return;
+                if (!sBluetoothWanted) return;
                 if (!isConnectionEstablished()) return;
                 if (usingBluetoothSco()) return;
                 if (!isBluetoothHeadsetPresent(MumlaService.this)) return;
@@ -474,19 +489,7 @@ public class MumlaService extends HumlaService implements
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
         AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
         if (am == null) return;
-        mAudioDeviceCallback = new AudioDeviceCallback() {
-            @Override
-            public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
-                // A headset was switched on or came back into range
-                mReconnectHandler.removeCallbacks(mApplyBluetoothPreference);
-                mReconnectHandler.postDelayed(mApplyBluetoothPreference, 2000);
-            }
-        };
-        try {
-            am.registerAudioDeviceCallback(mAudioDeviceCallback, mReconnectHandler);
-        } catch (RuntimeException e) {
-            mAudioDeviceCallback = null;
-        }
+        // No reaction to a headset appearing: the user switches it on by hand.
     }
 
     private void stopBluetoothWatch() {
@@ -1076,6 +1079,10 @@ public class MumlaService extends HumlaService implements
     public void onConnectionDisconnected(HumlaException e) {
         p60Event("disconnected" + (e != null ? ": " + e.getMessage() : ""));
         stopLinkWatch();
+        if (e == null && !mForceReconnectPending) {
+            // The user disconnected: forget the headset choice for the next session
+            sBluetoothWanted = false;
+        }
         super.onConnectionDisconnected(e);
         try {
             unregisterReceiver(mTalkReceiver);

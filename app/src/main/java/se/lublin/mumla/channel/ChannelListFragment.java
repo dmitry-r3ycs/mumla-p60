@@ -332,14 +332,14 @@ public class ChannelListFragment extends HumlaServiceFragment implements OnChann
             return false;
         } else if (itemId == R.id.menu_bluetooth) {
             item.setChecked(!item.isChecked());
-            // P60: remember the choice so it is restored after every (re)connect
-            Settings.getInstance(requireContext()).setBluetoothScoWanted(item.isChecked());
+            // P60: kept only for this session, to restore it after an automatic reconnect
+            MumlaService.setBluetoothWanted(item.isChecked());
             if (item.isChecked()) {
                 session.enableBluetoothSco();
-                if (!MumlaService.isBluetoothHeadsetPresent(requireContext())) {
-                    android.widget.Toast.makeText(requireContext(), R.string.p60BluetoothWaiting,
-                            android.widget.Toast.LENGTH_LONG).show();
-                }
+                android.widget.Toast.makeText(requireContext(),
+                        MumlaService.isBluetoothHeadsetPresent(requireContext())
+                                ? R.string.p60BluetoothOn : R.string.p60BluetoothWaiting,
+                        android.widget.Toast.LENGTH_LONG).show();
             } else {
                 session.disableBluetoothSco();
             }

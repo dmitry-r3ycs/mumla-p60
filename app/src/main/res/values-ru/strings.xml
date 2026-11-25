@@ -195,7 +195,7 @@
         <item quantity="other">%d новых сообщений</item>
     </plurals>
     <string name="donation_thanks">Спасибо за пожертвование.</string>
-    <string name="bluetooth">Bluetooth</string>
+    <string name="bluetooth">Микрофон Bluetooth-гарнитуры</string>
     <string name="image_confirm_send">Отправить это изображение\?</string>
     <string name="no_ptt_key">Кнопка не выбрана</string>
     <string name="grant_perm_notifications">Пожалуйста, дайте разрешение на отправку уведомлений.</string>
@@ -248,9 +248,10 @@
     <string name="p60EconomySum">В медленной мобильной сети (2G) звук передаётся с битрейтом 12 кбит/с пакетами по 60 мс. В быстрых сетях действуют ваши настройки.</string>
     <string name="p60EconomyOn">Медленная сеть: экономный режим звука</string>
     <string name="p60EconomyOff">Обычный режим звука</string>
-    <string name="p60BluetoothWaiting">Bluetooth-гарнитура не найдена. Звук переключится на неё автоматически, когда она подключится.</string>
+    <string name="p60BluetoothWaiting">Bluetooth-гарнитура не найдена.</string>
     <string name="p60QuitOnSwipe">Завершать при смахивании</string>
     <string name="p60QuitOnSwipeSum">Если смахнуть Mumla из списка недавних приложений, она отключается от сервера и прекращает работу. Если галочка снята, продолжает работать в фоне.</string>
     <string name="p60BatterySaver">Режим экономии заряда</string>
     <string name="p60BatterySaverSum">В тишине программа связывается с сервером раз в 20 с вместо 5 с, и модем успевает засыпать. Обрыв связи замечается позже (около 50 с). Действует со следующего подключения.</string>
+    <string name="p60BluetoothOn">Звук и микрофон переключены на гарнитуру (телефонное качество). Снимите галочку, чтобы слушать в высоком качестве и говорить в рацию.</string>
 </resources>

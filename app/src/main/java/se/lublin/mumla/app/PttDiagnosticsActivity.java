@@ -293,7 +293,7 @@ public class PttDiagnosticsActivity extends Activity implements PttAccessibility
                 + " handset=" + settings.isHandsetMode()
                 + " halfDuplex=" + settings.isHalfDuplex()
                 + " economySetting=" + settings.isEconomyModeEnabled()
-                + " bluetoothSetting=" + settings.isBluetoothScoWanted();
+                + " bluetoothWanted=" + MumlaService.isBluetoothWanted();
         if (connected) {
             try {
                 audio += " economyNow=" + service.isEconomyActive()

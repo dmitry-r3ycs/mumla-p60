@@ -110,7 +110,7 @@
     <string name="generateCertProgress">Generating certificate…</string>
     <string name="search">Search</string>
     <string name="searchHint">Search channels and users</string>
-    <string name="bluetooth">Bluetooth</string>
+    <string name="bluetooth">Bluetooth headset microphone</string>
     <string name="quickConnect">Quick Connect</string>
     <string name="connect">Connect</string>
     <string name="connectToServer">Connect to Server</string>
@@ -273,9 +273,10 @@
     <string name="p60EconomySum">On a slow mobile link (2G) the audio is sent at 12 kbit/s in 60 ms packets. On faster networks your own settings are used.</string>
     <string name="p60EconomyOn">Slow network: economy audio mode</string>
     <string name="p60EconomyOff">Normal audio mode</string>
-    <string name="p60BluetoothWaiting">No Bluetooth headset found. Audio will switch to it automatically when it connects.</string>
+    <string name="p60BluetoothWaiting">No Bluetooth headset found.</string>
     <string name="p60QuitOnSwipe">Quit when swiped away</string>
     <string name="p60QuitOnSwipeSum">Swiping Mumla away from the recent apps list disconnects from the server and stops the app. When unchecked, it keeps working in the background.</string>
     <string name="p60BatterySaver">Battery saver</string>
     <string name="p60BatterySaverSum">While nobody speaks, the server is contacted every 20 s instead of every 5 s, so the mobile modem can sleep in between. A lost connection is noticed later (about 50 s). Applies from the next connection.</string>
+    <string name="p60BluetoothOn">Sound and microphone switched to the headset (telephone quality). Uncheck to listen in high quality and talk into the radio.</string>
 </resources>
