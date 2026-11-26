@@ -311,7 +311,7 @@ public class MumlaService extends HumlaService implements
                 if (value != mLastPingValue) {
                     mLastPingValue = value;
                     mLastPingChange = now;
-                } else if (now - mLastPingChange > Math.max(PING_TIMEOUT, mConnectedPingInterval * 2500L)) {
+                } else if (now - mLastPingChange > Math.max(PING_TIMEOUT, mConnectedPingInterval * (mDeepSleep ? 4500L : 2500L))) {
                     // Safety: if this fires again and again, the check itself is
                     // wrong for this server; switch it off instead of reconnecting forever.
                     if (now - mPingTimeoutWindowStart > 10 * 60 * 1000L) {
@@ -505,7 +505,105 @@ public class MumlaService extends HumlaService implements
         mAudioDeviceCallback = null;
     }
 
+    // --- P60 (experimental): CPU sleeps in silence, an alarm wakes it for each ping ---
+
+    private static final String KEEPALIVE_ACTION = "se.lublin.mumla.p60.KEEPALIVE";
+    /** The library does not hold its wake lock for this connection. */
+    private boolean mDeepSleep;
+    private BroadcastReceiver mKeepAliveReceiver;
+    private android.app.PendingIntent mKeepAliveIntent;
+    private PowerManager.WakeLock mKeepAliveWakeLock;
+
+    /** Keeps the CPU awake for a short while (ping answer, incoming or outgoing voice). */
+    private void holdAwake(long millis) {
+        if (!mDeepSleep) return;
+        try {
+            if (mKeepAliveWakeLock == null) {
+                PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+                mKeepAliveWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Mumla:KeepAlive");
+                mKeepAliveWakeLock.setReferenceCounted(false);
+            }
+            mKeepAliveWakeLock.acquire(millis);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "P60 keepalive: wake lock failed: " + e);
+        }
+    }
+
+    private void scheduleKeepAlive() {
+        try {
+            android.app.AlarmManager am = (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
+            if (am == null || mKeepAliveIntent == null) return;
+            long at = SystemClock.elapsedRealtime() + mConnectedPingInterval * 1000L;
+            boolean exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || am.canScheduleExactAlarms();
+            if (exact) {
+                am.setExactAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, at, mKeepAliveIntent);
+            } else {
+                am.setAndAllowWhileIdle(android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP, at, mKeepAliveIntent);
+            }
+        } catch (RuntimeException e) {
+            Log.w(TAG, "P60 keepalive: cannot set alarm: " + e);
+        }
+    }
+
+    private void startKeepAlive() {
+        stopKeepAlive();
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        Intent intent = new Intent(KEEPALIVE_ACTION).setPackage(getPackageName());
+        mKeepAliveIntent = android.app.PendingIntent.getBroadcast(this, 1, intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+        mKeepAliveReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent received) {
+                // Stay awake just long enough to send the ping and get the answer
+                holdAwake(2500);
+                try {
+                    if (isConnectionEstablished()) p60PingNow();
+                } catch (RuntimeException e) {
+                    Log.w(TAG, "P60 keepalive: ping failed: " + e);
+                }
+                scheduleKeepAlive();
+            }
+        };
+        try {
+            IntentFilter filter = new IntentFilter(KEEPALIVE_ACTION);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(mKeepAliveReceiver, filter, RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(mKeepAliveReceiver, filter);
+            }
+        } catch (RuntimeException e) {
+            mKeepAliveReceiver = null;
+            return;
+        }
+        holdAwake(5000);
+        scheduleKeepAlive();
+    }
+
+    private void stopKeepAlive() {
+        try {
+            android.app.AlarmManager am = (android.app.AlarmManager) getSystemService(ALARM_SERVICE);
+            if (am != null && mKeepAliveIntent != null) am.cancel(mKeepAliveIntent);
+        } catch (RuntimeException e) {
+            // nothing to cancel
+        }
+        mKeepAliveIntent = null;
+        if (mKeepAliveReceiver != null) {
+            try {
+                unregisterReceiver(mKeepAliveReceiver);
+            } catch (IllegalArgumentException e) {
+                // was not registered
+            }
+            mKeepAliveReceiver = null;
+        }
+        try {
+            if (mKeepAliveWakeLock != null && mKeepAliveWakeLock.isHeld()) mKeepAliveWakeLock.release();
+        } catch (RuntimeException e) {
+            // already released
+        }
+    }
+
     private void stopLinkWatch() {
+        stopKeepAlive();
         stopBluetoothWatch();
         mReconnectHandler.removeCallbacks(mPingWatchdog);
         if (mLinkCallback != null) {
@@ -696,6 +794,8 @@ public class MumlaService extends HumlaService implements
      * broadcasts). The same press may arrive from both, so duplicates are dropped.
      */
     public void onHardwarePtt(boolean down) {
+        // P60: awake for the whole transmission and a little after it
+        holdAwake(down ? 5 * 60 * 1000L : 5000L);
         boolean allowed = mSettings.isPttBackgroundEnabled() || MumlaActivity.isOnScreen(this);
         Log.i(TAG, "P60 PTT " + (down ? "down" : "up") + " background=" + mSettings.isPttBackgroundEnabled()
                 + " onScreen=" + MumlaActivity.isOnScreen(this) + " allowed=" + allowed);
@@ -904,6 +1004,8 @@ public class MumlaService extends HumlaService implements
 
         @Override
         public void onUserTalkStateUpdated(IUser user) {
+            // P60: someone starts or stops talking - stay awake around it
+            holdAwake(15000);
             int selfSession = -1;
             try {
                 selfSession = getSessionId();
@@ -1041,7 +1143,9 @@ public class MumlaService extends HumlaService implements
         mForceReconnectPending = false;
         mReconnectAttempts = 0;
         mConnectedPingInterval = Integer.getInteger(Settings.PING_INTERVAL_PROPERTY, Settings.PING_INTERVAL_NORMAL);
-        p60Event("connected, ping every " + mConnectedPingInterval + " s");
+        mDeepSleep = Boolean.getBoolean(Settings.DEEP_SLEEP_PROPERTY);
+        p60Event("connected, ping every " + mConnectedPingInterval + " s, micOff="
+                + Boolean.getBoolean(Settings.MIC_OFF_PROPERTY) + ", cpuSleep=" + mDeepSleep);
         stopReconnectWatch();
         try {
             super.onConnectionSynchronized();
@@ -1051,6 +1155,7 @@ public class MumlaService extends HumlaService implements
         }
         startLinkWatch();
         startBluetoothWatch();
+        if (mDeepSleep) startKeepAlive();
 
         // Restore mute/deafen state
         if(mSettings.isMuted() || mSettings.isDeafened()) {
@@ -1125,6 +1230,8 @@ public class MumlaService extends HumlaService implements
                 changedExtras.putInt(HumlaService.EXTRAS_AUDIO_STREAM, mSettings.isHandsetMode() ?
                                      AudioManager.STREAM_VOICE_CALL : AudioManager.STREAM_MUSIC);
                 break;
+            case Settings.PREF_MIC_OFF:
+            case Settings.PREF_DEEP_SLEEP:
             case Settings.PREF_BATTERY_SAVER:
                 // Takes effect when the next connection starts
                 mSettings.applyPingInterval();

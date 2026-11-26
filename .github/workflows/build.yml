@@ -19,23 +19,7 @@ jobs:
         run: git submodule update --init --recursive
 
       - name: Patch network library for P60
-        run: |
-          set -e
-          F=libraries/humla/src/main/java/se/lublin/humla/net/HumlaConnection.java
-          echo "--- ping scheduling before patch"
-          grep -n 'scheduleAtFixedRate' "$F"
-          grep -q 'scheduleAtFixedRate(mPingRunnable, 0, 5, TimeUnit.SECONDS)' "$F"
-          sed -i 's/scheduleAtFixedRate(mPingRunnable, 0, 5, TimeUnit.SECONDS)/scheduleAtFixedRate(mPingRunnable, 0, Integer.getInteger("mumla.p60.pingInterval", 5), TimeUnit.SECONDS)/' "$F"
-          echo "--- after patch"
-          grep -n 'mumla.p60.pingInterval' "$F"
-
-      - name: Show library source used for the build
-        run: |
-          cd libraries/humla/src/main/java/se/lublin/humla
-          for f in net/HumlaConnection.java audio/AudioInput.java HumlaService.java protocol/AudioHandler.java audio/inputmode/ToggleInputMode.java; do
-            echo "=================== $f"
-            cat -n "$f"
-          done
+        run: python3 p60/patch_humla.py libraries/humla
 
       - uses: actions/setup-java@v4
         with:

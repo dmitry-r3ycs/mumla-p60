@@ -290,13 +290,34 @@ public class Settings {
         return preferences.getBoolean(PREF_BATTERY_SAVER, false);
     }
 
-    public int getPingIntervalSeconds() {
-        return isBatterySaverEnabled() ? PING_INTERVAL_SAVER : PING_INTERVAL_NORMAL;
+    /** P60: release the microphone between push-to-talk presses. */
+    public static final String PREF_MIC_OFF = "p60MicOff";
+    public static final String MIC_OFF_PROPERTY = "mumla.p60.micOff";
+    /** P60 (experimental): let the CPU sleep while nobody speaks. */
+    public static final String PREF_DEEP_SLEEP = "p60DeepSleep";
+    public static final String DEEP_SLEEP_PROPERTY = "mumla.p60.deepSleep";
+
+    public boolean isMicOffEnabled() {
+        return preferences.getBoolean(PREF_MIC_OFF, false);
     }
 
-    /** Publishes the ping interval for the next connection. */
+    public boolean isDeepSleepEnabled() {
+        return preferences.getBoolean(PREF_DEEP_SLEEP, false);
+    }
+
+    public int getPingIntervalSeconds() {
+        // CPU sleep is pointless with a ping every 5 s, so it implies the long interval
+        return (isBatterySaverEnabled() || isDeepSleepEnabled()) ? PING_INTERVAL_SAVER : PING_INTERVAL_NORMAL;
+    }
+
+    /**
+     * Publishes the battery settings to the (patched) network library. The microphone
+     * setting acts at once; the ping interval and CPU sleep from the next connection.
+     */
     public void applyPingInterval() {
         System.setProperty(PING_INTERVAL_PROPERTY, String.valueOf(getPingIntervalSeconds()));
+        System.setProperty(MIC_OFF_PROPERTY, String.valueOf(isMicOffEnabled()));
+        System.setProperty(DEEP_SLEEP_PROPERTY, String.valueOf(isDeepSleepEnabled()));
     }
 
     /** P60: swiping the app away from the recent apps list disconnects and stops it. */

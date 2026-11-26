@@ -69,6 +69,20 @@
         app:iconSpaceReserved="false" />
 
     <CheckBoxPreference
+        android:defaultValue="false"
+        android:key="p60MicOff"
+        android:summary="@string/p60MicOffSum"
+        android:title="@string/p60MicOff"
+        app:iconSpaceReserved="false" />
+
+    <CheckBoxPreference
+        android:defaultValue="false"
+        android:key="p60DeepSleep"
+        android:summary="@string/p60DeepSleepSum"
+        android:title="@string/p60DeepSleep"
+        app:iconSpaceReserved="false" />
+
+    <CheckBoxPreference
         android:defaultValue="true"
         android:key="p60QuitOnSwipe"
         android:summary="@string/p60QuitOnSwipeSum"
